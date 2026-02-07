@@ -1,0 +1,13 @@
+{
+  "name": "omnia-charity-tracking",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:api": "cd apps/api && python manage.py runserver 0.0.0.0:8000",
+    "dev:svc": "cd apps/svc && uvicorn main:app --host 127.0.0.1 --port 8001 --reload",
+    "lint:web": "cd apps/web && npm run lint",
+    "migrate": "cd apps/api && python manage.py migrate",
+    "makemigrations": "cd apps/api && python manage.py makemigrations"
+  }
+}

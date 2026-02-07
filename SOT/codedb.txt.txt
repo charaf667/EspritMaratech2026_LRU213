@@ -1,0 +1,331 @@
+-- ============================================================
+-- OMNIA CHARITY TRACKING — PostgreSQL Schema (V1)
+-- Decisions applied:
+-- - UUID everywhere
+-- - users.email unique
+-- - cookie session httpOnly => sessions table
+-- - families.zone_label (text)
+-- - visits.is_urgent + visits.urgent_reason (primary)
+-- - visit_aids.is_urgent optional
+-- - attachments: MUST on visits; max 3/visit + allow-list + 10MB enforced by API
+--   DB stores attachments.size_bytes; owner_type = visit | complaint_message
+-- - complaints = complaints + complaint_messages (admin replies only)
+-- ============================================================
+
+-- Extensions
+create extension if not exists pgcrypto;
+
+-- ============================================================
+-- Helper: updated_at trigger (optional but useful)
+-- ============================================================
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- ============================================================
+-- USERS / SESSIONS
+-- ============================================================
+create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  role text not null check (role in ('agent','admin')),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_users_updated_at on users;
+create trigger trg_users_updated_at
+before update on users
+for each row execute function set_updated_at();
+
+create index if not exists users_role_idx on users(role);
+
+create table if not exists sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  revoked_at timestamptz null,
+  last_seen_at timestamptz not null default now(),
+  user_agent_hash text null,
+  ip_hash text null
+);
+
+create index if not exists sessions_user_id_idx on sessions(user_id);
+create index if not exists sessions_active_idx on sessions(expires_at) where revoked_at is null;
+
+-- ============================================================
+-- FAMILIES
+-- ============================================================
+create table if not exists families (
+  id uuid primary key default gen_random_uuid(),
+
+  head_name text not null,
+  household_size int not null check (household_size >= 1),
+  phone text null,
+  address_text text null,
+
+  vulnerability_notes text null, -- optional free text; tags are normalized below
+  zone_label text null,          -- decision: simple text
+
+  lat double precision not null,
+  lng double precision not null,
+
+  last_visit_at timestamptz null,
+  next_due_at timestamptz null,
+  priority_override text null check (priority_override in ('urgent','normal') or priority_override is null),
+
+  created_by_user_id uuid not null references users(id),
+  assigned_to_user_id uuid null references users(id),
+
+  -- Accessibility fields (SHOULD)
+  has_accessibility_need boolean not null default false,
+  accessibility_types text[] null, -- validate allowed values at API layer
+  accessibility_verification text not null default 'none'
+    check (accessibility_verification in ('none','declared','verified')),
+  verified_by_user_id uuid null references users(id),
+  verified_at timestamptz null,
+
+  -- OCR (SHOULD)
+  ocr_used boolean not null default false,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_families_updated_at on families;
+create trigger trg_families_updated_at
+before update on families
+for each row execute function set_updated_at();
+
+create index if not exists families_created_by_idx on families(created_by_user_id);
+create index if not exists families_assigned_to_idx on families(assigned_to_user_id);
+create index if not exists families_zone_idx on families(zone_label);
+create index if not exists families_next_due_idx on families(next_due_at);
+create index if not exists families_last_visit_idx on families(last_visit_at);
+create index if not exists families_lat_lng_idx on families(lat, lng);
+create index if not exists families_due_sort_idx on families(next_due_at, last_visit_at);
+
+-- ============================================================
+-- VULNERABILITY TAGS (normalized)
+-- ============================================================
+create table if not exists vulnerability_tags (
+  id uuid primary key default gen_random_uuid(),
+  key text not null unique,         -- stable key in english
+  label_fr text not null,
+  label_ar text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists vulnerability_tags_active_idx on vulnerability_tags(is_active) where is_active = true;
+
+create table if not exists family_vulnerability_tags (
+  family_id uuid not null references families(id) on delete cascade,
+  tag_id uuid not null references vulnerability_tags(id),
+  created_at timestamptz not null default now(),
+  primary key (family_id, tag_id)
+);
+
+create index if not exists family_vuln_tags_tag_idx on family_vulnerability_tags(tag_id);
+
+-- ============================================================
+-- VISITS
+-- ============================================================
+create table if not exists visits (
+  id uuid primary key default gen_random_uuid(),
+
+  family_id uuid not null references families(id) on delete cascade,
+  created_by_user_id uuid not null references users(id),
+
+  visited_at timestamptz not null default now(),
+  motive text not null check (motive in ('distribution','follow_up','assessment','emergency')),
+
+  visit_lat double precision null,
+  visit_lng double precision null,
+
+  -- Decision: urgent is primarily on visit
+  is_urgent boolean not null default false,
+  urgent_reason text null,
+
+  notes text null,
+  next_due_at timestamptz null,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_visits_updated_at on visits;
+create trigger trg_visits_updated_at
+before update on visits
+for each row execute function set_updated_at();
+
+create index if not exists visits_family_timeline_idx on visits(family_id, visited_at desc);
+create index if not exists visits_family_visited_at_desc_idx on visits(family_id, visited_at desc);
+create index if not exists visits_visited_at_idx on visits(visited_at desc);
+create index if not exists visits_next_due_idx on visits(next_due_at);
+create index if not exists visits_is_urgent_true_idx on visits(visited_at desc) where is_urgent = true;
+create index if not exists visits_created_by_idx on visits(created_by_user_id);
+
+-- ============================================================
+-- AID TYPES (seed 10 items)
+-- ============================================================
+create table if not exists aid_types (
+  id uuid primary key default gen_random_uuid(),
+  key text not null unique,       -- stable key in english
+  label_fr text not null,
+  label_ar text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists aid_types_active_idx on aid_types(is_active) where is_active = true;
+
+-- ============================================================
+-- VISIT AIDS (AidPicker)
+-- - note_short 140 chars applies here
+-- - visit_aids.is_urgent optional granularity
+-- ============================================================
+create table if not exists visit_aids (
+  id uuid primary key default gen_random_uuid(),
+  visit_id uuid not null references visits(id) on delete cascade,
+  aid_type_id uuid not null references aid_types(id),
+  quantity int not null default 1 check (quantity >= 0),
+  note_short varchar(140) null,
+  is_urgent boolean null
+);
+
+create unique index if not exists visit_aids_unique on visit_aids(visit_id, aid_type_id);
+create index if not exists visit_aids_visit_idx on visit_aids(visit_id);
+create index if not exists visit_aids_aid_type_idx on visit_aids(aid_type_id);
+
+-- ============================================================
+-- ATTACHMENTS (MUST on visits; also used for complaint messages)
+-- Decision: store size_bytes
+-- owner_type: 'visit' | 'complaint_message'
+-- Note: allow-list + max 3 + max 10MB enforced at API layer (config)
+-- ============================================================
+create table if not exists attachments (
+  id uuid primary key default gen_random_uuid(),
+
+  owner_type text not null check (owner_type in ('visit','complaint_message')),
+  owner_id uuid not null,
+
+  uploaded_by_user_id uuid not null references users(id),
+
+  mime_type text not null,
+  original_filename text not null,
+  storage_path text not null,
+  size_bytes bigint not null check (size_bytes >= 0),
+
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz null
+);
+
+create index if not exists attachments_owner_lookup_idx
+  on attachments(owner_type, owner_id)
+  where deleted_at is null;
+
+create index if not exists attachments_uploader_idx on attachments(uploaded_by_user_id);
+create index if not exists attachments_created_idx on attachments(created_at desc);
+
+-- ============================================================
+-- BENEFICIARY CARDS (Feeling Portal)
+-- Decision: code_short length 6 for UX
+-- ============================================================
+create table if not exists beneficiary_cards (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  visit_id uuid null references visits(id) on delete set null,
+
+  code_short char(6) not null unique,
+  expires_at timestamptz not null,
+
+  revoked_at timestamptz null,
+  revoked_by_user_id uuid null references users(id),
+
+  created_at timestamptz not null default now()
+);
+
+create index if not exists beneficiary_cards_family_idx on beneficiary_cards(family_id);
+create index if not exists beneficiary_cards_expires_idx on beneficiary_cards(expires_at);
+
+-- ============================================================
+-- COMPLAINTS (SHOULD) — thread minimal
+-- Decision: complaints + complaint_messages (admin replies only)
+-- ============================================================
+create table if not exists complaints (
+  id uuid primary key default gen_random_uuid(),
+
+  family_id uuid not null references families(id) on delete cascade,
+  visit_id uuid null references visits(id) on delete set null,
+  created_by_user_id uuid not null references users(id),
+
+  category text not null,
+  priority text not null check (priority in ('low','medium','high','urgent')),
+  status text not null default 'open'
+    check (status in ('open','in_progress','resolved','closed')),
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_complaints_updated_at on complaints;
+create trigger trg_complaints_updated_at
+before update on complaints
+for each row execute function set_updated_at();
+
+create index if not exists complaints_family_idx on complaints(family_id);
+create index if not exists complaints_status_idx on complaints(status, created_at desc);
+create index if not exists complaints_priority_idx on complaints(priority, created_at desc);
+create index if not exists complaints_created_by_idx on complaints(created_by_user_id);
+
+create table if not exists complaint_messages (
+  id uuid primary key default gen_random_uuid(),
+  complaint_id uuid not null references complaints(id) on delete cascade,
+  author_user_id uuid not null references users(id),
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists complaint_messages_thread_idx on complaint_messages(complaint_id, created_at);
+create index if not exists complaint_messages_id_complaint_idx on complaint_messages(id, complaint_id);
+
+-- ============================================================
+-- AUDIT LOG (includes attachment upload/delete)
+-- ============================================================
+create table if not exists audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid not null references users(id),
+  action text not null,        -- e.g. create/update/delete/upload/download/login/logout
+  entity_type text not null,   -- e.g. family/visit/attachment/complaint/...
+  entity_id uuid not null,
+  meta jsonb null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists audit_log_entity_idx on audit_log(entity_type, entity_id, created_at desc);
+create index if not exists audit_log_actor_idx on audit_log(actor_user_id, created_at desc);
+
+-- ============================================================
+-- SEED: aid_types (10 items)
+-- ============================================================
+insert into aid_types (key, label_fr, label_ar)
+values
+  ('food_parcel',       'Colis alimentaire',             'طرد غذائي'),
+  ('medicines',         'Médicaments',                   'أدوية'),
+  ('hygiene',           'Hygiène',                       'نظافة'),
+  ('clothes_blankets',  'Vêtements / couvertures',       'ملابس / أغطية'),
+  ('baby',              'Bébé (lait/couches)',           'رضيع (حليب/حفاضات)'),
+  ('school',            'Scolaire',                      'مدرسي'),
+  ('transport',         'Transport',                     'نقل'),
+  ('housing',           'Logement (loyer/hébergement)',  'سكن (إيجار/إيواء)'),
+  ('financial',         'Aide financière',               'مساعدة مالية'),
+  ('specific_other',    'Aide spécifique (Autre)',       'مساعدة خاصة (أخرى)')
+on conflict (key) do nothing;
