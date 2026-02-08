@@ -149,17 +149,13 @@ def _patch_meta(output: Dict[str, Any], lang: str) -> Dict[str, Any]:
 _LANG_NAMES = {"fr": "français", "ar": "arabe", "tn": "arabe tunisien"}
 
 def _build_system_prompt(lang: str) -> str:
-    return f"""Tu es un analyste opérationnel senior pour OMNIA, une plateforme de suivi d'opérations humanitaires de terrain.
-Ton audience: administrateurs et coordinateurs qui prennent des décisions stratégiques.
-
-Règles STRICTES:
-- Réponds UNIQUEMENT en JSON valide, langue: {_LANG_NAMES.get(lang, 'français')}.
-- Utilise SEULEMENT les données INPUT. Ne fabrique AUCUN fait, nom ou chiffre.
-- Chaque citation = un id existant dans INPUT ou "data_missing".
-- Sois détaillé et analytique: chaque bullet doit expliquer le CONTEXTE, l'IMPACT et la RECOMMANDATION.
-- Génère 4-6 sections thématiques, 2-4 bullets par section, 3-5 actions prioritaires, 2-3 alertes.
-- Les actions doivent avoir des target_url précis vers les sections admin (/app/admin?section=...).
-- Le résumé doit faire 4-6 phrases avec les chiffres clés et les tendances."""
+    return f"""Tu es un analyste opérationnel pour OMNIA, plateforme humanitaire de terrain.
+Règles:
+- JSON valide uniquement, langue: {_LANG_NAMES.get(lang, 'français')}.
+- Utilise SEULEMENT les données INPUT. Ne fabrique rien.
+- Chaque citation = un id du INPUT.
+- Chaque bullet: contexte + impact + recommandation.
+- Résumé: 3-5 phrases avec chiffres clés."""
 
 
 def _build_user_prompt(input_data: Dict[str, Any], window_hours: int) -> str:

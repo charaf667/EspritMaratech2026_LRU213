@@ -16,10 +16,49 @@ const STATUS_KEY: Record<string, { variant: "neutral" | "warning" | "critical" |
   failed: { variant: "critical", labelKey: "offlineFailed" },
 };
 
+/** Map raw API URLs to human-readable action descriptions */
+function describeEntry(entry: OutboxEntry, t: (key: TranslationKey) => string): { label: string; detail: string } {
+  const url = entry.url;
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(entry.body); } catch { /* ignore */ }
+
+  if (url.includes("/emergencies/trigger")) {
+    const typeKey = (parsed.type_key || parsed.emergency_type || "") as string;
+    return {
+      label: t("emergency"),
+      detail: parsed.summary ? String(parsed.summary) : typeKey.replace(/_/g, " "),
+    };
+  }
+  if (url.includes("/visits/")) {
+    return {
+      label: t("tabNewVisit"),
+      detail: parsed.motive ? String(parsed.motive).replace(/_/g, " ") : "",
+    };
+  }
+  if (url.includes("/complaints/")) {
+    return {
+      label: t("sidebarComplaints"),
+      detail: parsed.category ? String(parsed.category).replace(/_/g, " ") : "",
+    };
+  }
+  if (url.includes("/families/")) {
+    return {
+      label: t("sidebarFamilies"),
+      detail: parsed.head_name ? String(parsed.head_name) : "",
+    };
+  }
+  // Fallback
+  return {
+    label: `${entry.method} ${url.replace("/api/v1/", "").replace("/api/", "")}`,
+    detail: "",
+  };
+}
+
 function OfflinePageInner() {
   const { t, locale } = useI18n();
   const { isOnline, outboxCount, lastSyncAt, syncNow, isSyncing } = useOffline();
   const [entries, setEntries] = useState<OutboxEntry[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     loadEntries();
@@ -32,7 +71,12 @@ function OfflinePageInner() {
 
   const handleSync = async () => {
     await syncNow();
-    await loadEntries();
+    const remaining = await getAllOutbox();
+    if (remaining.length === 0) {
+      router.push("/app");
+      return;
+    }
+    setEntries(remaining.sort((a, b) => b.createdAt - a.createdAt));
   };
 
   return (
@@ -116,14 +160,18 @@ function OfflinePageInner() {
             </h2>
             {entries.map((entry) => {
               const meta = STATUS_KEY[entry.status] ?? STATUS_KEY.pending;
+              const desc = describeEntry(entry, t);
               return (
                 <Card key={entry.id}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium text-[var(--text-primary)]">
-                      {entry.method} {entry.url.replace("/api/", "")}
+                      {desc.label}
                     </span>
                     <Badge variant={meta.variant}>{t(meta.labelKey)}</Badge>
                   </div>
+                  {desc.detail && (
+                    <p className="text-xs text-[var(--text-secondary)] mb-1 truncate">{desc.detail}</p>
+                  )}
                   <p className="text-xs text-[var(--text-tertiary)]">
                     {new Date(entry.createdAt).toLocaleString(locale === "ar" ? "ar-DZ" : "fr-FR")}
                   </p>

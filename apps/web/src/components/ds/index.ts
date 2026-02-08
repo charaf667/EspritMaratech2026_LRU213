@@ -26,3 +26,4 @@ export { default as EmergencyJournal } from "./EmergencyJournal";
 export { default as EmergenciesPanel } from "./EmergenciesPanel";
 export { default as SignaturePad } from "./SignaturePad";
 export { default as AttestationCard } from "./AttestationCard";
+export { default as QRScannerConfirm } from "./QRScannerConfirm";

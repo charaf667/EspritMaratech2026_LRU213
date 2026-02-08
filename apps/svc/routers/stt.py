@@ -52,13 +52,16 @@ async def transcribe_segment(
 
     wav_path = None
     try:
-        # Convert to 16kHz mono WAV using pydub (requires ffmpeg)
-        from pydub import AudioSegment
+        # Convert to 16kHz mono WAV using ffmpeg directly (pydub broken on Python 3.13+)
+        import subprocess
 
-        audio_seg = AudioSegment.from_file(tmp_in_path)
-        audio_seg = audio_seg.set_frame_rate(16000).set_channels(1)
         wav_path = tmp_in_path + ".wav"
-        audio_seg.export(wav_path, format="wav")
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", tmp_in_path, "-ar", "16000", "-ac", "1", "-f", "wav", wav_path],
+            capture_output=True, timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed: {result.stderr.decode(errors='replace')[:500]}")
 
         # Map locale hint to Whisper language code
         whisper_lang = None

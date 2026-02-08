@@ -3,9 +3,9 @@
 import { useI18n } from "@/i18n";
 import { useA11y } from "@/lib/accessibility-context";
 import type { Family, AidItem, Attachment } from "@/lib/mock-data";
-import { Button, Card, AttachmentChip } from "@/components/ds";
+import { Button, Card, AttachmentChip, QRScannerConfirm } from "@/components/ds";
 import TTSButton from "./TTSButton";
-import { Check, QrCode } from "lucide-react";
+import { Check, QrCode, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 interface InterviewReviewStepProps {
@@ -16,7 +16,10 @@ interface InterviewReviewStepProps {
   attachments: Attachment[];
   submitted: boolean;
   generatedToken: string | null;
+  feelingCode: string | null;
+  omniaRef: string | null;
   submitting: boolean;
+  submitError: string | null;
   onSubmit: () => void;
 }
 
@@ -28,7 +31,10 @@ export default function InterviewReviewStep({
   attachments,
   submitted,
   generatedToken,
+  feelingCode,
+  omniaRef,
   submitting,
+  submitError,
   onSubmit,
 }: InterviewReviewStepProps) {
   const { t, locale } = useI18n();
@@ -43,8 +49,9 @@ export default function InterviewReviewStep({
     };
   });
 
-  const feelingUrl = generatedToken
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/feeling/card/${generatedToken}`
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const feelingUrl = feelingCode
+    ? `${origin}/feeling?code=${feelingCode}`
     : null;
 
   // Build TTS summary text
@@ -85,6 +92,13 @@ export default function InterviewReviewStep({
               ? t("visitSuccess")
               : (isAr ? "تم الحفظ محلياً" : "Sauvegardé localement")}
           </p>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="flex items-center gap-3 p-[var(--space-4)] rounded-[var(--radius-lg)] border border-[var(--critical)] bg-[color-mix(in_srgb,var(--critical)_8%,transparent)] mb-[var(--space-4)]">
+          <AlertTriangle size={28} className="text-[var(--critical)]" />
+          <p className="text-lg font-semibold text-[var(--critical)]">{submitError}</p>
         </div>
       )}
 
@@ -133,13 +147,36 @@ export default function InterviewReviewStep({
         </Card>
       )}
 
+      {/* OMNIA Reference */}
+      {submitted && omniaRef && (
+        <Card className="flex flex-col items-center gap-[var(--space-3)] mb-[var(--space-3)]">
+          <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t("receipt")}</p>
+          <p className="text-2xl font-bold font-mono text-[var(--primary)] tracking-widest">{omniaRef}</p>
+        </Card>
+      )}
+
       {/* QR Code */}
-      {submitted && generatedToken && feelingUrl && (
+      {submitted && feelingUrl && (
         <Card className="flex flex-col items-center gap-[var(--space-4)] mb-[var(--space-3)]">
           <h3 className="text-lg font-medium text-[var(--text-primary)]">{t("generateQR")}</h3>
           <QRCodeSVG value={feelingUrl} size={240} level="M" />
-          <p className="text-xs text-[var(--text-tertiary)] text-center break-all">{feelingUrl}</p>
+          <p className="text-xs text-[var(--text-tertiary)] text-center">{feelingUrl}</p>
+          {feelingCode && (
+            <p className="text-lg font-mono font-semibold bg-[var(--bg-secondary)] px-4 py-2 rounded-[var(--radius-md)] tracking-widest">
+              {feelingCode}
+            </p>
+          )}
         </Card>
+      )}
+
+      {/* QR Scan Confirmation */}
+      {submitted && feelingCode && (
+        <div className="mb-[var(--space-3)]">
+          <QRScannerConfirm
+            expectedCode={feelingCode}
+            onConfirmed={() => {}}
+          />
+        </div>
       )}
 
       {/* Large confirm button */}

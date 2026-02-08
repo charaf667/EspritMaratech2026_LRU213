@@ -44,7 +44,12 @@ export async function processOutbox(): Promise<{ synced: number; failed: number 
   let failedCount = 0;
 
   try {
-    const pending = await getPendingOutbox();
+    const pendingEntries = await getPendingOutbox();
+    // Also retry failed entries (they may succeed after field name migration)
+    const { getAllOutbox } = await import("./offline-db");
+    const allEntries = await getAllOutbox();
+    const failedEntries = allEntries.filter(e => e.status === "failed");
+    const pending = [...pendingEntries, ...failedEntries];
     if (pending.length === 0) {
       syncing = false;
       return { synced: 0, failed: 0 };
@@ -58,12 +63,17 @@ export async function processOutbox(): Promise<{ synced: number; failed: number 
       let success = false;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-          // Inject client_id into body for idempotency (LWW)
+          // Inject client_id into body for idempotency (LWW) + migrate legacy fields
           let body = entry.body;
-          if (entry.clientId && body) {
+          if (body) {
             try {
               const parsed = JSON.parse(body);
-              parsed.client_id = entry.clientId;
+              if (entry.clientId) parsed.client_id = entry.clientId;
+              // Migrate legacy field name
+              if (parsed.emergency_type && !parsed.type_key) {
+                parsed.type_key = parsed.emergency_type;
+                delete parsed.emergency_type;
+              }
               body = JSON.stringify(parsed);
             } catch {
               // body is not JSON — send as-is

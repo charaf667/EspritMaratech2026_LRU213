@@ -65,6 +65,8 @@ export interface Visit {
   notes: string;
   attachments: Attachment[];
   feelingToken?: string;
+  feelingCode?: string;
+  omniaRef?: string;
 }
 
 export interface Complaint {
@@ -147,16 +149,16 @@ export const MOCK_FAMILIES: Family[] = [
 // ─── Mock Aid Catalogue (max 10 per SOT) ────────────────────
 
 export const MOCK_AIDS: AidItem[] = [
-  { id: "food_parcel", label: "Colis alimentaire", labelAr: "طرد غذائي", category: "Alimentaire", maxQty: 5 },
-  { id: "medicines", label: "Médicaments", labelAr: "أدوية", category: "Santé", maxQty: 3 },
-  { id: "hygiene", label: "Hygiène", labelAr: "نظافة", category: "Hygiène", maxQty: 3 },
+  { id: "food_parcel", label: "Colis alimentaire (5kg)", labelAr: "طرد غذائي (5 كغ)", category: "Alimentaire", maxQty: 5 },
+  { id: "medicines", label: "Médicaments essentiels", labelAr: "أدوية أساسية", category: "Santé", maxQty: 3 },
+  { id: "hygiene", label: "Kit hygiène (savon, dentifrice…)", labelAr: "مستلزمات نظافة (صابون، معجون أسنان…)", category: "Hygiène", maxQty: 3 },
   { id: "clothes_blankets", label: "Vêtements / couvertures", labelAr: "ملابس / أغطية", category: "Vêtements", maxQty: 5 },
-  { id: "baby", label: "Bébé (lait/couches)", labelAr: "رضيع (حليب/حفاضات)", category: "Bébé", maxQty: 3 },
-  { id: "school", label: "Scolaire", labelAr: "مدرسي", category: "Éducation", maxQty: 3 },
-  { id: "transport", label: "Transport", labelAr: "نقل", category: "Transport", maxQty: 2 },
-  { id: "housing", label: "Logement (loyer/hébergement)", labelAr: "سكن (إيجار/إيواء)", category: "Logement", maxQty: 1 },
-  { id: "financial", label: "Aide financière", labelAr: "مساعدة مالية", category: "Financier", maxQty: 1 },
-  { id: "specific_other", label: "Aide spécifique (Autre)", labelAr: "مساعدة خاصة (أخرى)", category: "Autre", maxQty: 3 },
+  { id: "baby", label: "Kit bébé (lait, couches, biberon)", labelAr: "مستلزمات رضيع (حليب، حفاضات، رضّاعة)", category: "Bébé", maxQty: 3 },
+  { id: "school", label: "Kit scolaire (cahiers, stylos, cartable)", labelAr: "مستلزمات مدرسية (دفاتر، أقلام، محفظة)", category: "Éducation", maxQty: 3 },
+  { id: "transport", label: "Bon de transport", labelAr: "قسيمة نقل", category: "Transport", maxQty: 2 },
+  { id: "housing", label: "Aide au loyer (mois)", labelAr: "مساعدة إيجار (شهر)", category: "Logement", maxQty: 1 },
+  { id: "financial", label: "Aide financière directe (DT)", labelAr: "مساعدة مالية مباشرة (د.ت)", category: "Financier", maxQty: 1 },
+  { id: "specific_other", label: "Aide spécifique (sur mesure)", labelAr: "مساعدة خاصة (حسب الحاجة)", category: "Autre", maxQty: 3 },
 ];
 
 // ─── Mock Visits ────────────────────────────────────────────

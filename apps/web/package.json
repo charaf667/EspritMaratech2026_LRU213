@@ -12,6 +12,7 @@
     "@sentry/nextjs": "^10.38.0",
     "@tailwindcss/postcss": "^4.1.18",
     "clsx": "^2.1.1",
+    "html5-qrcode": "^2.3.8",
     "idb": "^8.0.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.563.0",

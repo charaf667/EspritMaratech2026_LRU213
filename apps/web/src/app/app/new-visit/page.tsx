@@ -23,7 +23,7 @@ import { useOffline } from "@/lib/offline-context";
 import { addToOutbox, getCachedFamilies, getCachedAidTypes } from "@/lib/offline-db";
 import {
   Stepper, Button, Badge, Input, Chip, AttachmentChip, PushToTalk, Card, Modal,
-  EmergencyFAB, EmergencyTriggerSheet, EmergencyJournal, AttestationCard,
+  EmergencyFAB, EmergencyTriggerSheet, EmergencyJournal, AttestationCard, QRScannerConfirm,
 } from "@/components/ds";
 import {
   ChevronLeft, ChevronRight, Check, Minus, Plus,
@@ -34,7 +34,8 @@ import { QRCodeSVG } from "qrcode.react";
 export default function NewVisitPage() {
   const { t, locale } = useI18n();
   const { user } = useAuth();
-  const { interviewMode } = useA11y();
+  const { interviewMode, oneHand } = useA11y();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOnline } = useOffline();
@@ -61,7 +62,10 @@ export default function NewVisitPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [feelingCode, setFeelingCode] = useState<string | null>(null);
+  const [omniaRef, setOmniaRef] = useState<string | null>(null);
   const [createdVisitId, setCreatedVisitId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Data from API or mock
   const [families, setFamilies] = useState<Family[]>([]);
@@ -158,19 +162,28 @@ export default function NewVisitPage() {
     : true;
 
   const handleNext = () => {
-    if (step < 2) setStep(step + 1);
+    if (step < 2) {
+      setStep(step + 1);
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handleBack = () => {
-    if (step > 0) setStep(step - 1);
+    if (step > 0) {
+      setStep(step - 1);
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handleSubmit = async () => {
     if (!selectedFamilyId) return;
+    setSubmitError(null);
 
     if (!USE_API) {
       const token = `tk_${Date.now().toString(36)}`;
       setGeneratedToken(token);
+      setFeelingCode("DEMO01");
+      setOmniaRef("OMNIA-DEMO01");
       setSubmitted(true);
       return;
     }
@@ -178,12 +191,12 @@ export default function NewVisitPage() {
     setSubmitting(true);
     const payload: CreateVisitPayload = {
       family_id: selectedFamilyId,
-      notes: notes || undefined,
+      notes: notes || "",
       aids: Array.from(selectedAids.entries()).map(([aidId, qty]) => ({
         aid_type_key: aidId,
         qty,
       })),
-      complaint_text: complaintText.trim() || undefined,
+      complaint_text: complaintText.trim() || "",
     };
 
     if (!isOnline) {
@@ -199,25 +212,36 @@ export default function NewVisitPage() {
       return;
     }
 
-    const { data, error } = await apiCreateVisit(payload);
-    setSubmitting(false);
+    try {
+      const { data, error } = await apiCreateVisit(payload);
+      setSubmitting(false);
 
-    if (data) {
-      setGeneratedToken(data.feeling_token ?? null);
-      setCreatedVisitId(data.id ?? null);
-      setSubmitted(true);
+      if (data) {
+        setGeneratedToken(data.feeling_token ?? null);
+        setFeelingCode(data.feeling_code ?? null);
+        setOmniaRef(data.omnia_ref ?? null);
+        setCreatedVisitId(data.id ?? null);
+        setSubmitted(true);
+      } else {
+        console.error("Visit creation failed:", error);
+        setSubmitError(error || t("visitSubmitError"));
+      }
+    } catch (e) {
+      setSubmitting(false);
+      console.error("Visit creation exception:", e);
+      setSubmitError(t("visitSubmitError"));
     }
   };
 
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto bg-[var(--bg-secondary)]">
+    <div ref={scrollRef} className="flex flex-col flex-1 overflow-y-auto bg-[var(--bg-secondary)] scroll-smooth">
       {/* Stepper */}
-      <div className="bg-[var(--surface-raised)] border-b border-[var(--border-default)] py-[var(--space-4)] px-[var(--space-4)]">
+      <div className="sticky top-0 z-10 bg-[var(--surface-raised)] border-b border-[var(--border-default)] py-[var(--space-4)] px-[var(--space-4)]">
         <Stepper steps={steps} currentStep={step} />
       </div>
 
       {/* Step content */}
-      <div className="flex-1 overflow-y-auto p-[var(--space-4)] max-w-2xl mx-auto w-full">
+      <div key={step} className="flex-1 p-[var(--space-4)] max-w-2xl mx-auto w-full step-animate">
         {step === 0 && interviewMode ? (
           <InterviewFamilyStep
             families={filteredFamilies}
@@ -287,7 +311,10 @@ export default function NewVisitPage() {
             attachments={attachments}
             submitted={submitted}
             generatedToken={generatedToken}
+            feelingCode={feelingCode}
+            omniaRef={omniaRef}
             submitting={submitting}
+            submitError={submitError}
             onSubmit={handleSubmit}
           />
         ) : step === 2 && (
@@ -299,11 +326,17 @@ export default function NewVisitPage() {
             attachments={attachments}
             submitted={submitted}
             generatedToken={generatedToken}
+            feelingCode={feelingCode}
+            omniaRef={omniaRef}
             visitId={createdVisitId}
+            submitError={submitError}
             t={t}
           />
         )}
       </div>
+
+      {/* Bottom spacer for one-hand mode */}
+      {oneHand && <div className="a11y-bottom-spacer" />}
 
       {/* Bottom actions */}
       <div className="a11y-bottom-actions sticky bottom-0 bg-[var(--surface-raised)] border-t border-[var(--border-default)] p-[var(--space-4)]">
@@ -735,7 +768,7 @@ function StepBenefits({
 // ─── Step 3: Validation ─────────────────────────────────────
 
 function StepValidation({
-  family, aids, selectedAids, notes, attachments, submitted, generatedToken, visitId, t,
+  family, aids, selectedAids, notes, attachments, submitted, generatedToken, feelingCode, omniaRef, visitId, submitError, t,
 }: {
   family: Family;
   aids: AidItem[];
@@ -744,7 +777,10 @@ function StepValidation({
   attachments: Attachment[];
   submitted: boolean;
   generatedToken: string | null;
+  feelingCode: string | null;
+  omniaRef: string | null;
   visitId: string | null;
+  submitError: string | null;
   t: (key: TranslationKey) => string;
 }) {
   const aidsList = Array.from(selectedAids.entries()).map(([aidId, qty]) => {
@@ -752,8 +788,9 @@ function StepValidation({
     return { label: aid?.label ?? aidId, qty };
   });
 
-  const feelingUrl = generatedToken
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/feeling/card/${generatedToken}`
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const feelingUrl = feelingCode
+    ? `${origin}/feeling?code=${feelingCode}`
     : null;
 
   return (
@@ -771,15 +808,23 @@ function StepValidation({
         </div>
       )}
 
+      {submitError && (
+        <div className="flex items-center gap-3 p-[var(--space-4)] rounded-[var(--radius-lg)] border border-[var(--critical)] bg-[color-mix(in_srgb,var(--critical)_8%,transparent)]">
+          <AlertTriangle size={24} className="text-[var(--critical)] shrink-0" />
+          <p className="text-sm font-medium text-[var(--critical)]">{submitError}</p>
+        </div>
+      )}
+
       <h2 className="text-xl font-semibold text-[var(--text-primary)]">{t("visitSummary")}</h2>
 
       {/* Family */}
       <Card>
         <h3 className="text-base font-medium text-[var(--text-primary)] mb-2">{t("family")}</h3>
-        <p className="text-sm text-[var(--text-secondary)]">
-          {family.name} — {family.id}
-        </p>
-        <p className="text-sm text-[var(--text-tertiary)]">{family.address}</p>
+        <p className="text-sm font-semibold text-[var(--text-primary)]">{family.name}</p>
+        <p className="text-sm text-[var(--text-secondary)]">{family.address}</p>
+        {family.membersCount && (
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">{family.membersCount} {t("members")}</p>
+        )}
       </Card>
 
       {/* Aids */}
@@ -815,16 +860,34 @@ function StepValidation({
         </Card>
       )}
 
+      {/* OMNIA Reference */}
+      {submitted && omniaRef && (
+        <Card className="flex flex-col items-center gap-[var(--space-3)]">
+          <p className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">{t("receipt")}</p>
+          <p className="text-2xl font-bold font-mono text-[var(--primary)] tracking-widest">{omniaRef}</p>
+        </Card>
+      )}
+
       {/* QR Code */}
-      {submitted && generatedToken && feelingUrl && (
+      {submitted && feelingUrl && (
         <Card className="flex flex-col items-center gap-[var(--space-4)]">
           <h3 className="text-base font-medium text-[var(--text-primary)]">{t("generateQR")}</h3>
           <QRCodeSVG value={feelingUrl} size={200} level="M" />
-          <p className="text-xs text-[var(--text-tertiary)] text-center break-all">{feelingUrl}</p>
-          <p className="text-sm font-mono bg-[var(--bg-secondary)] px-3 py-1 rounded-[var(--radius-md)]">
-            {generatedToken}
-          </p>
+          <p className="text-xs text-[var(--text-tertiary)] text-center">{feelingUrl}</p>
+          {feelingCode && (
+            <p className="text-lg font-mono font-semibold bg-[var(--bg-secondary)] px-4 py-2 rounded-[var(--radius-md)] tracking-widest">
+              {feelingCode}
+            </p>
+          )}
         </Card>
+      )}
+
+      {/* QR Scan Confirmation */}
+      {submitted && feelingCode && (
+        <QRScannerConfirm
+          expectedCode={feelingCode}
+          onConfirmed={() => {}}
+        />
       )}
 
       {/* Attestation — shown after visit is submitted */}

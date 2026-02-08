@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useI18n } from "@/i18n";
 import type { TranslationKey } from "@/i18n";
 import { USE_API, apiRedeemFeeling } from "@/lib/api";
@@ -20,10 +20,12 @@ function classifyRedeemError(status: number, detail: string): TranslationKey {
 export default function FeelingRedeemPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [error, setError] = useState<TranslationKey | null>(null);
   const [loading, setLoading] = useState(false);
   const attemptsRef = useRef(0);
+  const autoRedeemed = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +55,32 @@ export default function FeelingRedeemPage() {
     }
   };
 
+  // Auto-redeem if ?code= is in URL (from QR scan)
+  useEffect(() => {
+    const urlCode = searchParams.get("code");
+    if (urlCode && !autoRedeemed.current) {
+      autoRedeemed.current = true;
+      setCode(urlCode);
+      // Submit automatically
+      setTimeout(() => {
+        setCode(urlCode);
+        if (!USE_API) {
+          router.push(`/feeling/card/${urlCode}`);
+          return;
+        }
+        setLoading(true);
+        apiRedeemFeeling(urlCode.trim().toUpperCase()).then(({ data, error: apiErr, status: s }) => {
+          setLoading(false);
+          if (data?.token) {
+            router.push(`/feeling/card/${data.token}`);
+          } else {
+            setError(classifyRedeemError(s, apiErr ?? ""));
+          }
+        });
+      }, 100);
+    }
+  }, [searchParams, router]);
+
   return (
     <div className="pt-[var(--space-8)]">
       <div className="text-center mb-[var(--space-8)]">
@@ -68,7 +96,7 @@ export default function FeelingRedeemPage() {
         <form onSubmit={handleSubmit} className="space-y-[var(--space-4)]">
           <Input
             label={t("feelingCode")}
-            placeholder="tk_abc123"
+            placeholder="ABC123"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             icon={<Search size={18} />}

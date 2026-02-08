@@ -94,15 +94,15 @@ class TriggerEmergencySerializer(serializers.Serializer):
     type_key = serializers.CharField(max_length=50)
     family_id = serializers.UUIDField(required=False, allow_null=True)
     visit_id = serializers.UUIDField(required=False, allow_null=True)
-    summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    details = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    summary = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=500)
+    details = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=5000)
     trigger_method = serializers.ChoiceField(
         choices=EmergencyIncident.TriggerMethod.choices,
         default="slide",
     )
-    lat = serializers.FloatField(required=False, allow_null=True)
-    lng = serializers.FloatField(required=False, allow_null=True)
-    accuracy_m = serializers.IntegerField(required=False, allow_null=True)
+    lat = serializers.FloatField(required=False, allow_null=True, min_value=-90, max_value=90)
+    lng = serializers.FloatField(required=False, allow_null=True, min_value=-180, max_value=180)
+    accuracy_m = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=100000)
     network_state = serializers.ChoiceField(
         choices=EmergencyIncident.NetworkState.choices,
         default="online",
@@ -120,12 +120,8 @@ class TriggerEmergencySerializer(serializers.Serializer):
         family_id = attrs.get("family_id")
         visit_id = attrs.get("visit_id")
 
-        # Both null allowed ONLY if type.is_agent_safety=true
-        if not family_id and not visit_id:
-            if etype and not etype.is_agent_safety:
-                raise serializers.ValidationError(
-                    "family_id or visit_id is required for non-agent-safety emergencies."
-                )
+        # Both null allowed — agent may trigger emergency without family context
+        # (family can be assigned later by admin)
 
         # If both provided, validate visit belongs to family
         if visit_id and family_id:
@@ -146,14 +142,14 @@ class TriggerEmergencySerializer(serializers.Serializer):
 
 class StatusChangeSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
-        choices=["in_progress", "resolved", "closed"],
+        choices=["acknowledged", "in_progress", "resolved", "closed"],
     )
     message = serializers.CharField(required=False, allow_blank=True, default="")
 
     VALID_TRANSITIONS = {
-        "open": ("acknowledged", "in_progress"),
-        "acknowledged": ("in_progress", "resolved"),
-        "in_progress": ("resolved",),
+        "open": ("acknowledged", "in_progress", "resolved", "closed"),
+        "acknowledged": ("in_progress", "resolved", "closed"),
+        "in_progress": ("resolved", "closed"),
         "resolved": ("closed",),
         "closed": (),
     }
@@ -185,4 +181,4 @@ class AssignSerializer(serializers.Serializer):
 
 
 class ActionNoteSerializer(serializers.Serializer):
-    message = serializers.CharField(min_length=1)
+    message = serializers.CharField(min_length=1, max_length=2000)

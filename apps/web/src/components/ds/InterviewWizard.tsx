@@ -75,13 +75,27 @@ export default function InterviewWizard({
   const [currentQ, setCurrentQ] = useState(0);
   const q = questions[currentQ];
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Also scroll parent containers
+    const el = document.querySelector(".flex-1.overflow-y-auto, [class*='scroll-smooth']");
+    el?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleNext = () => {
-    if (currentQ < questions.length - 1) setCurrentQ(currentQ + 1);
-    else onDone();
+    if (currentQ < questions.length - 1) {
+      setCurrentQ(currentQ + 1);
+      scrollToTop();
+    } else {
+      onDone();
+    }
   };
 
   const handleBack = () => {
-    if (currentQ > 0) setCurrentQ(currentQ - 1);
+    if (currentQ > 0) {
+      setCurrentQ(currentQ - 1);
+      scrollToTop();
+    }
   };
 
   return (
@@ -102,7 +116,7 @@ export default function InterviewWizard({
       </div>
 
       {/* Question */}
-      <div className="flex-1 overflow-y-auto p-[var(--space-4)]">
+      <div key={currentQ} className="flex-1 overflow-y-auto p-[var(--space-4)] step-animate">
         <h2 className="text-[var(--text-2xl)] font-semibold text-[var(--text-primary)] mb-[var(--space-4)]">
           {t(q.titleKey as TranslationKey)}
         </h2>

@@ -1,52 +1,65 @@
-# Dependencies
+# ─── Dependencies ────────────────────────────────────────────
 node_modules/
-__pycache__/
-*.pyc
-*.pyo
 .venv/
 venv/
 env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
 
-# Environment
+# ─── Environment / Secrets ───────────────────────────────────
 .env
 .env.local
 .env.*.local
+*.pem
+cookies.txt
 
-# Build outputs
+# ─── Build outputs ───────────────────────────────────────────
 .next/
 out/
 dist/
 build/
-*.egg-info/
-*.egg
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Python
+# ─── Database ────────────────────────────────────────────────
 *.sqlite3
 db.sqlite3
 staticfiles/
 media/
 
-# Coverage / testing
+# ─── IDE ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# ─── OS ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Testing / Coverage ─────────────────────────────────────
 .coverage
 htmlcov/
 .pytest_cache/
 .mypy_cache/
 
-# Next.js
-.next/
-.vercel
-
-# PWA
+# ─── PWA generated ───────────────────────────────────────────
 sw.js
 workbox-*.js
+
+# ─── Deployment ──────────────────────────────────────────────
+.vercel
+.netlify
+
+# ─── Project docs (internal only, not in repo) ──────────────
+SOT/
+CLAUDE_OPUS_DEBUG_PROMPT.md
+DEMO_SCRIPT.md
+LAN_TESTING.md
+OPS_BRIEF_TEST_CHECKLIST.md
+UX_SPEC_MAP_UBER.md
+juryconnnexionapp.md
+mkcert.exe

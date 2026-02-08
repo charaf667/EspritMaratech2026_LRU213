@@ -212,6 +212,13 @@ const translations = {
     feelingDate: "Date de visite",
     feelingFamily: "Famille",
     generateQR: "Générer QR",
+    receipt: "Reçu OMNIA",
+    scanConfirmTitle: "Confirmation par scan",
+    scanConfirmDesc: "Scannez le QR code du reçu pour confirmer la remise des aides au bénéficiaire.",
+    scanSuccess: "Reçu confirmé !",
+    scanMismatch: "QR code non reconnu. Réessayez.",
+    scanStart: "Scanner le QR",
+    scanStop: "Arrêter",
 
     // Admin Dashboard
     dashboard: "Tableau de bord",
@@ -255,6 +262,7 @@ const translations = {
     submitVisit: "Valider la visite",
     visitSuccess: "Visite enregistrée avec succès",
     visitSavedLocally: "Visite sauvegardée localement — sera synchronisée une fois en ligne.",
+    visitSubmitError: "Erreur lors de l'enregistrement de la visite. Vérifiez votre connexion et réessayez.",
 
     // STT states (Feature 1)
     sttProcessing: "Transcription en cours...",
@@ -427,8 +435,8 @@ const translations = {
     opsBriefModel: "Modèle",
     opsBriefWindow: "Fenêtre",
     opsBriefGeneratedAt: "Généré le",
-    opsBriefFallback: "Briefing déterministe (IA indisponible)",
-    opsBriefVerify: "Généré par IA — vérifiez les sources",
+    opsBriefFallback: "Analyse algorithmique OMNIA",
+    opsBriefVerify: "Analyse opérationnelle OMNIA",
     opsBriefEmpty: "Aucun briefing généré. Cliquez pour générer.",
     opsBriefError: "Erreur lors de la génération",
     opsBriefPriority: "Priorité",
@@ -645,6 +653,13 @@ const translations = {
     feelingDate: "تاريخ الزيارة",
     feelingFamily: "العائلة",
     generateQR: "إنشاء QR",
+    receipt: "إيصال OMNIA",
+    scanConfirmTitle: "تأكيد بالمسح",
+    scanConfirmDesc: "امسح رمز QR للإيصال لتأكيد تسليم المساعدات للمستفيد.",
+    scanSuccess: "تم التأكيد!",
+    scanMismatch: "رمز QR غير معروف. حاول مرة أخرى.",
+    scanStart: "مسح QR",
+    scanStop: "إيقاف",
 
     // Admin Dashboard
     dashboard: "لوحة التحكم",
@@ -688,6 +703,7 @@ const translations = {
     submitVisit: "تأكيد الزيارة",
     visitSuccess: "تم تسجيل الزيارة بنجاح",
     visitSavedLocally: "تم حفظ الزيارة محلياً — ستتم المزامنة عند الاتصال.",
+    visitSubmitError: "خطأ في تسجيل الزيارة. تحقق من الاتصال وأعد المحاولة.",
 
     // STT states (Feature 1)
     sttProcessing: "جاري النسخ...",
@@ -860,8 +876,8 @@ const translations = {
     opsBriefModel: "النموذج",
     opsBriefWindow: "النافذة",
     opsBriefGeneratedAt: "تاريخ الإنشاء",
-    opsBriefFallback: "ملخص حتمي (الذكاء الاصطناعي غير متوفر)",
-    opsBriefVerify: "أُنشئ بالذكاء الاصطناعي — تحقق من المصادر",
+    opsBriefFallback: "تحليل خوارزمي OMNIA",
+    opsBriefVerify: "تحليل عملياتي OMNIA",
     opsBriefEmpty: "لم يتم إنشاء ملخص. انقر للإنشاء.",
     opsBriefError: "خطأ أثناء الإنشاء",
     opsBriefPriority: "الأولوية",
@@ -1078,6 +1094,13 @@ const translations = {
     feelingDate: "تاريخ الزيارة",
     feelingFamily: "العايلة",
     generateQR: "اعمل QR",
+    receipt: "وصل OMNIA",
+    scanConfirmTitle: "أكّد بالسكان",
+    scanConfirmDesc: "اسكاني الكود باش تأكّد اللي الإعانة وصلت للمستفيد.",
+    scanSuccess: "توّا تأكّد!",
+    scanMismatch: "الكود ما تعرفش. عاود.",
+    scanStart: "اسكاني QR",
+    scanStop: "وقّف",
 
     // Admin Dashboard
     dashboard: "لوحة التحكم",
@@ -1121,6 +1144,7 @@ const translations = {
     submitVisit: "أكّد الزيارة",
     visitSuccess: "الزيارة تسجّلت بنجاح",
     visitSavedLocally: "الزيارة تسجّلت محلّياً — باش تتزامن كي ترجع الأنترنت.",
+    visitSubmitError: "صار خطأ وقت تسجيل الزيارة. ثبّت الأنترنت وعاود.",
 
     // STT states (Feature 1)
     sttProcessing: "يكتب اللي قلتو...",
@@ -1293,8 +1317,8 @@ const translations = {
     opsBriefModel: "الموديل",
     opsBriefWindow: "النافذة",
     opsBriefGeneratedAt: "تاريخ الإنشاء",
-    opsBriefFallback: "بريف عادي (الذكاء الاصطناعي مش موجود)",
-    opsBriefVerify: "تنشأ بالذكاء الاصطناعي — ثبّت المصادر",
+    opsBriefFallback: "تحليل خوارزمي OMNIA",
+    opsBriefVerify: "تحليل عملياتي OMNIA",
     opsBriefEmpty: "ما فمّاش بريف. أنقر باش تنشئ.",
     opsBriefError: "صار خطأ وقت الإنشاء",
     opsBriefPriority: "الأولوية",

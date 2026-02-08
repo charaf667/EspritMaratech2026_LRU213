@@ -44,6 +44,8 @@ class VisitListSerializer(serializers.ModelSerializer):
     created_by_id = serializers.UUIDField(source="created_by.id", read_only=True)
     family_id = serializers.UUIDField(source="family.id", read_only=True)
     feeling_token = serializers.SerializerMethodField()
+    feeling_code = serializers.SerializerMethodField()
+    omnia_ref = serializers.SerializerMethodField()
     has_attestation = serializers.SerializerMethodField()
     attestation_status = serializers.SerializerMethodField()
     attested_at = serializers.SerializerMethodField()
@@ -64,6 +66,8 @@ class VisitListSerializer(serializers.ModelSerializer):
             "next_due_at",
             "aids",
             "feeling_token",
+            "feeling_code",
+            "omnia_ref",
             "has_attestation",
             "attestation_status",
             "attested_at",
@@ -73,6 +77,16 @@ class VisitListSerializer(serializers.ModelSerializer):
     def get_feeling_token(self, obj):
         card = obj.beneficiary_cards.first()
         return card.access_token if card else None
+
+    def get_feeling_code(self, obj):
+        card = obj.beneficiary_cards.first()
+        return card.code_short if card else None
+
+    def get_omnia_ref(self, obj):
+        card = obj.beneficiary_cards.first()
+        if card:
+            return f"OMNIA-{card.code_short}"
+        return None
 
     def get_has_attestation(self, obj):
         return hasattr(obj, "attestation") and obj.attestation is not None
@@ -106,17 +120,23 @@ class VisitCreateSerializer(serializers.Serializer):
     motive = serializers.ChoiceField(
         choices=Visit.Motive.choices, default="distribution"
     )
-    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    notes = serializers.CharField(required=False, allow_blank=True, default="", max_length=5000)
     is_urgent = serializers.BooleanField(default=False)
     urgent_reason = serializers.CharField(
-        required=False, allow_blank=True, default=""
+        required=False, allow_blank=True, default="", max_length=1000
     )
-    visit_lat = serializers.FloatField(required=False, allow_null=True, default=None)
-    visit_lng = serializers.FloatField(required=False, allow_null=True, default=None)
+    visit_lat = serializers.FloatField(required=False, allow_null=True, default=None, min_value=-90, max_value=90)
+    visit_lng = serializers.FloatField(required=False, allow_null=True, default=None, min_value=-180, max_value=180)
     aids = VisitAidWriteSerializer(many=True, required=False, default=[])
     complaint_text = serializers.CharField(
-        required=False, allow_blank=True, default=""
+        required=False, allow_blank=True, default="", max_length=2000
     )
+
+    def validate_family_id(self, value):
+        from apps.families.models import Family
+        if not Family.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Famille introuvable.")
+        return value
 
     def validate_aids(self, aids):
         if len(aids) > 10:

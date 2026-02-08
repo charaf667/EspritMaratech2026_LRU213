@@ -20,6 +20,11 @@ class ComplaintSerializer(serializers.ModelSerializer):
     family_name = serializers.CharField(source="family.head_name", read_only=True)
     created_by_name = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
+    category = serializers.ChoiceField(choices=Complaint.Category.choices)
+    priority = serializers.ChoiceField(choices=Complaint.Priority.choices)
+    resolution_notes = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=2000
+    )
 
     class Meta:
         model = Complaint

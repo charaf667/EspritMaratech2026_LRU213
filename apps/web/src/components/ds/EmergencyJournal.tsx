@@ -102,7 +102,16 @@ export default function EmergencyJournal({
     reader.readAsDataURL(file);
   }, []);
 
-  const generateClientId = () => crypto.randomUUID();
+  const generateClientId = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    // Fallback for non-secure contexts (HTTP on mobile)
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  };
 
   const handleSubmit = async () => {
     if (!selectedType) return;
@@ -111,7 +120,7 @@ export default function EmergencyJournal({
     const clientId = generateClientId();
     const payload: TriggerEmergencyPayload = {
       client_id: clientId,
-      emergency_type: selectedType,
+      type_key: selectedType,
       summary: summary.trim() || undefined,
       details: [details.trim(), voiceNote.trim()].filter(Boolean).join("\n\n") || undefined,
       lat,

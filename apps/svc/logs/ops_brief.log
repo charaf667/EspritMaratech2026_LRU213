@@ -8,3 +8,5 @@
 {"ts": "2026-02-08T07:44:46.739137+00:00", "hash": "eae2ee9c12f2", "ms": 82463, "err": null, "preview": "{'meta': {'generated_at': '2026-02-08T07:44:46.739102+00:00', 'window_hours': 24, 'lang': 'fr', 'model': 'qwen2.5:3b'}, 'summary': \"Au cours des dernières 24 heures, l'ONG a géré 8 familles et enregistré 3 retards. Deux plaintes sont toujours ouvertes.\", 'sections': [{'title': 'Familles en retard', "}
 {"ts": "2026-02-08T07:53:10.398231+00:00", "hash": "e4bdf6309a78", "ms": 180554, "err": null, "preview": "{'meta': {'generated_at': '2026-02-08T07:53:10.398189+00:00', 'window_hours': 24, 'lang': 'fr', 'model': 'qwen2.5:3b'}, 'summary': \"Durant les 24 dernières heures, la plateforme OMNIA a suivi 42 familles. Il y a eu 18 visites effectuées par jour. Deux familles sont en retard depuis plus de 10 jours "}
 {"ts": "2026-02-08T09:33:33.542216+00:00", "hash": "ebafbb5c6f67", "ms": 600661, "err": "", "preview": null}
+{"ts": "2026-02-08T11:25:31.379980+00:00", "hash": "c3650ba00f7f", "ms": 600590, "err": "", "preview": null}
+{"ts": "2026-02-08T11:37:06.563643+00:00", "hash": "729142d4c207", "ms": 600778, "err": "", "preview": null}

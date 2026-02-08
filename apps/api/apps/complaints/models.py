@@ -7,6 +7,14 @@ from apps.common.models import TimeStampedUUIDModel, UUIDModel
 class Complaint(TimeStampedUUIDModel):
     """A complaint filed about a family or visit."""
 
+    class Category(models.TextChoices):
+        MISSING_AID = "missing_aid", "Missing Aid"
+        DELAY = "delay", "Delay"
+        AGENT_BEHAVIOR = "agent_behavior", "Agent Behavior"
+        DATA_ERROR = "data_error", "Data Error"
+        VISIT_REPORT = "visit_report", "Visit Report"
+        OTHER = "other", "Other"
+
     class Priority(models.TextChoices):
         LOW = "low", "Low"
         MEDIUM = "medium", "Medium"
@@ -49,7 +57,7 @@ class Complaint(TimeStampedUUIDModel):
         db_column="assigned_to_user_id",
     )
 
-    category = models.CharField(max_length=100)
+    category = models.CharField(max_length=100, choices=Category.choices)
     priority = models.CharField(max_length=10, choices=Priority.choices)
     status = models.CharField(
         max_length=15,

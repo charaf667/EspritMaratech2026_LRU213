@@ -1670,21 +1670,15 @@ function OpsBriefView({ t }: { t: (key: TranslationKey) => string }) {
       {/* Brief content */}
       {brief && (
         <div className="space-y-6">
-          {/* Meta + fallback/verify banner */}
+          {/* Meta banner */}
           <div className="flex flex-wrap items-center gap-3">
-            {isFallback ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]">
-                <Info size={14} />
-                <span className="text-xs font-medium">{t("opsBriefFallback")}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] text-[var(--primary)]">
-                <Info size={14} />
-                <span className="text-xs font-medium">{t("opsBriefVerify")}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] text-[var(--primary)]">
+              <Brain size={14} />
+              <span className="text-xs font-medium">
+                {isFallback && brief.meta.model?.includes("ollama") ? t("opsBriefFallback") : t("opsBriefVerify")}
+              </span>
+            </div>
             <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)]">
-              <span>{t("opsBriefModel")}: <strong>{brief.meta.model}</strong></span>
               <span>{t("opsBriefWindow")}: <strong>{brief.meta.window_hours} {t("opsBriefHours")}</strong></span>
               <span>{t("opsBriefGeneratedAt")}: <strong>{new Date(brief.meta.generated_at).toLocaleString()}</strong></span>
               {timingMs != null && <span>⏱ {(timingMs / 1000).toFixed(1)}s</span>}

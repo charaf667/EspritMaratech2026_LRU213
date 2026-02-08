@@ -195,131 +195,245 @@ def _build_ops_brief_input(window_hours=24, lang="fr"):
 
 def _build_deterministic_fallback(input_data):
     """
-    Build a non-AI deterministic brief from the input data.
-    Used when Ollama/FastAPI is unavailable or returns invalid output.
+    Build a rich deterministic brief from the input data.
+    Designed to produce professional, detailed output even without AI.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
     kpis = input_data.get("kpis", {})
     lang = input_data.get("meta", {}).get("lang", "fr")
+    window_hours = input_data.get("meta", {}).get("window_hours", 24)
 
-    # Build summary from KPIs
-    summary_parts = []
-    if kpis.get("overdue_count", 0) > 0:
-        summary_parts.append(f"{kpis['overdue_count']} famille(s) en retard")
-    if kpis.get("urgent_count", 0) > 0:
-        summary_parts.append(f"{kpis['urgent_count']} famille(s) urgente(s)")
-    if kpis.get("open_complaints_count", 0) > 0:
-        summary_parts.append(f"{kpis['open_complaints_count']} plainte(s) ouverte(s)")
-    if kpis.get("suspected_duplicates_count", 0) > 0:
-        summary_parts.append(f"{kpis['suspected_duplicates_count']} doublon(s) suspecté(s)")
-    summary_parts.append(f"{kpis.get('visits_last_24h', 0)} visite(s) dernières 24h")
-    summary_parts.append(f"{kpis.get('families_total', 0)} famille(s) total")
-
-    summary = "Briefing opérationnel (fallback déterministe). " + ". ".join(summary_parts) + "."
-
-    # Build sections from lists
-    sections = []
+    families_total = kpis.get("families_total", 0)
+    overdue_count = kpis.get("overdue_count", 0)
+    urgent_count = kpis.get("urgent_count", 0)
+    complaints_count = kpis.get("open_complaints_count", 0)
+    duplicates_count = kpis.get("suspected_duplicates_count", 0)
+    visits_24h = kpis.get("visits_last_24h", 0)
 
     overdue_items = input_data.get("top_overdue", [])
-    if overdue_items:
-        sections.append({
-            "title": "Familles en retard",
-            "bullets": [
-                {
-                    "text": f"{item['label']} — {item.get('evidence', '')}",
-                    "severity": "critical",
-                    "citations": [item["id"]],
-                }
-                for item in overdue_items[:5]
-            ],
-        })
-
     urgent_items = input_data.get("top_urgent", [])
-    if urgent_items:
-        sections.append({
-            "title": "Familles urgentes",
-            "bullets": [
-                {
-                    "text": f"{item['label']} — {item.get('evidence', '')}",
-                    "severity": "warning",
-                    "citations": [item["id"]],
-                }
-                for item in urgent_items[:5]
-            ],
-        })
-
     complaint_items = input_data.get("open_complaints", [])
-    if complaint_items:
-        sections.append({
-            "title": "Plaintes ouvertes",
-            "bullets": [
-                {
-                    "text": f"{item['label']} — {item.get('evidence', '')}",
-                    "severity": "warning" if item.get("priority") in ("high", "urgent") else "info",
-                    "citations": [item["id"]],
-                }
-                for item in complaint_items[:5]
-            ],
-        })
-
     dup_items = input_data.get("suspected_duplicates", [])
-    if dup_items:
-        sections.append({
-            "title": "Doublons suspectés",
-            "bullets": [
-                {
-                    "text": f"{item['label']} — {item.get('evidence', '')}",
-                    "severity": "info",
-                    "citations": [item["id"]],
-                }
-                for item in dup_items[:5]
-            ],
-        })
+    workload_items = input_data.get("workload_by_agent", [])
 
-    # Build prioritized actions
+    # ── Executive summary ──
+    overdue_pct = round(overdue_count / families_total * 100, 1) if families_total else 0
+    summary_lines = []
+    summary_lines.append(
+        f"Le système OMNIA suit actuellement {families_total} famille(s) bénéficiaire(s)."
+    )
+    if visits_24h:
+        summary_lines.append(
+            f"{visits_24h} visite(s) ont été effectuée(s) dans les dernières {window_hours}h."
+        )
+    else:
+        summary_lines.append(
+            f"Aucune visite enregistrée dans les dernières {window_hours}h, ce qui nécessite une action immédiate."
+        )
+    if overdue_count:
+        summary_lines.append(
+            f"{overdue_count} famille(s) ({overdue_pct}%) sont en retard de suivi et requièrent une planification prioritaire."
+        )
+    if urgent_count:
+        summary_lines.append(
+            f"{urgent_count} famille(s) sont marquée(s) comme urgente(s) par les agents de terrain."
+        )
+    if complaints_count:
+        summary_lines.append(
+            f"{complaints_count} plainte(s) ouverte(s) en attente de résolution."
+        )
+    if duplicates_count:
+        summary_lines.append(
+            f"{duplicates_count} doublon(s) suspecté(s) nécessitent une vérification pour assurer la qualité des données."
+        )
+    summary = " ".join(summary_lines)
+
+    # ── Sections ──
+    sections = []
+
+    # S1: KPIs analysis
+    kpi_bullets = []
+    kpi_bullets.append({
+        "text": f"Base de données: {families_total} famille(s) enregistrée(s). "
+                f"Taux de retard: {overdue_pct}% ({overdue_count}/{families_total}).",
+        "severity": "critical" if overdue_pct > 20 else ("warning" if overdue_pct > 10 else "info"),
+        "citations": [],
+    })
+    if visits_24h:
+        kpi_bullets.append({
+            "text": f"Activité terrain: {visits_24h} visite(s) dans les dernières {window_hours}h. "
+                    f"Ratio couverture: {round(visits_24h / max(families_total, 1) * 100, 1)}% de la base.",
+            "severity": "info",
+            "citations": [],
+        })
+    else:
+        kpi_bullets.append({
+            "text": f"Aucune visite dans les dernières {window_hours}h. Activité terrain à relancer d'urgence.",
+            "severity": "critical",
+            "citations": [],
+        })
+    sections.append({"title": "Indicateurs Clés (KPIs)", "bullets": kpi_bullets})
+
+    # S2: Overdue families
+    if overdue_items:
+        bullets = []
+        for item in overdue_items[:5]:
+            evidence = item.get("evidence", "")
+            # Parse next_due_at from evidence for human-readable text
+            due_info = evidence.replace("next_due_at=", "Échéance dépassée: ")
+            bullets.append({
+                "text": f"{item['label']} — {due_info}. "
+                        f"Impact: cette famille ne reçoit plus de suivi depuis la date d'échéance. "
+                        f"Recommandation: planifier une visite dans les 48h.",
+                "severity": "critical",
+                "citations": [item["id"]],
+            })
+        sections.append({"title": "Retards & Suivis en Souffrance", "bullets": bullets})
+
+    # S3: Urgent families
+    if urgent_items:
+        bullets = []
+        for item in urgent_items[:5]:
+            evidence = item.get("evidence", "")
+            last_visit_info = ""
+            if "last_visit=" in evidence:
+                lv = evidence.split("last_visit=")[1]
+                last_visit_info = f" Dernière visite: {lv}."
+            bullets.append({
+                "text": f"{item['label']} — Marqué urgent par l'agent.{last_visit_info} "
+                        f"Cette famille requiert une intervention prioritaire.",
+                "severity": "warning",
+                "citations": [item["id"]],
+            })
+        sections.append({"title": "Cas Urgents & Prioritaires", "bullets": bullets})
+
+    # S4: Complaints
+    if complaint_items:
+        bullets = []
+        for item in complaint_items[:5]:
+            bullets.append({
+                "text": f"{item['label']} — {item.get('evidence', '')}. "
+                        f"Recommandation: assigner un responsable et traiter sous 72h.",
+                "severity": "warning" if item.get("priority") in ("high", "urgent") else "info",
+                "citations": [item["id"]],
+            })
+        sections.append({"title": "Plaintes & Réclamations", "bullets": bullets})
+
+    # S5: Workload
+    if workload_items:
+        bullets = []
+        for item in workload_items[:5]:
+            evidence = item.get("evidence", "")
+            bullets.append({
+                "text": f"{item['label']} — {evidence.replace('assigned=', 'Familles assignées: ').replace('overdue=', ', en retard: ')}. "
+                        f"Priorité de rééquilibrage: {item.get('priority', 'medium')}.",
+                "severity": "warning" if item.get("priority") == "high" else "info",
+                "citations": [item["id"]],
+            })
+        sections.append({"title": "Charge de Travail des Agents", "bullets": bullets})
+
+    # S6: Duplicates & data quality
+    dq_bullets = []
+    if dup_items:
+        for item in dup_items[:3]:
+            dq_bullets.append({
+                "text": f"{item['label']} — {item.get('evidence', '')}. "
+                        f"Recommandation: vérifier et fusionner si confirmé.",
+                "severity": "info",
+                "citations": [item["id"]],
+            })
+    data_missing = input_data.get("meta", {}).get("data_missing", [])
+    if data_missing:
+        dq_bullets.append({
+            "text": f"Données manquantes détectées: {', '.join(data_missing)}. "
+                    f"Impact: l'analyse peut être incomplète.",
+            "severity": "warning",
+            "citations": ["data_missing"],
+        })
+    if dq_bullets:
+        sections.append({"title": "Qualité des Données & Doublons", "bullets": dq_bullets})
+
+    # ── Actions prioritaires ──
     actions = []
     priority_counter = 1
-    for item in overdue_items[:3]:
+
+    for item in overdue_items[:2]:
         actions.append({
-            "title": f"Planifier visite: {item['label']}",
-            "why": f"En retard — {item.get('evidence', '')}",
+            "title": f"Planifier visite urgente: {item['label']}",
+            "why": f"Famille en retard de suivi. Chaque jour supplémentaire augmente le risque de perte de contact avec le bénéficiaire.",
             "priority": priority_counter,
-            "target_url": item.get("target_url", ""),
+            "target_url": item.get("target_url", "/app/admin?section=families"),
             "citations": [item["id"]],
         })
         priority_counter += 1
 
     for item in urgent_items[:2]:
         actions.append({
-            "title": f"Traiter urgence: {item['label']}",
-            "why": f"Marqué urgent — {item.get('evidence', '')}",
+            "title": f"Intervenir sur cas urgent: {item['label']}",
+            "why": f"Famille marquée urgente par l'agent terrain. Nécessite une évaluation et une réponse rapide.",
             "priority": priority_counter,
-            "target_url": item.get("target_url", ""),
+            "target_url": item.get("target_url", "/app/admin?section=families"),
             "citations": [item["id"]],
         })
         priority_counter += 1
 
-    # Alerts
+    for item in complaint_items[:1]:
+        actions.append({
+            "title": f"Résoudre plainte: {item['label']}",
+            "why": f"Plainte ouverte nécessitant un suivi. Le délai de résolution impacte la satisfaction des bénéficiaires.",
+            "priority": priority_counter,
+            "target_url": item.get("target_url", "/app/admin?section=complaints"),
+            "citations": [item["id"]],
+        })
+        priority_counter += 1
+
+    if not actions:
+        actions.append({
+            "title": "Vérifier la planification des visites",
+            "why": "Aucune action critique détectée. Profitez de cette période calme pour anticiper les prochaines échéances.",
+            "priority": 1,
+            "target_url": "/app/admin?section=planner",
+            "citations": [],
+        })
+
+    # ── Alerts ──
     alerts = []
-    if kpis.get("overdue_count", 0) >= 5:
+    if overdue_count >= 1:
+        level = "critical" if overdue_count >= 3 else "warning"
         alerts.append({
-            "level": "critical",
-            "message": f"{kpis['overdue_count']} familles en retard nécessitent une attention immédiate.",
+            "level": level,
+            "message": f"{overdue_count} famille(s) en retard de suivi. "
+                       f"{'Situation critique nécessitant une mobilisation immédiate des agents.' if overdue_count >= 3 else 'Planifier des visites de rattrapage dans les prochains jours.'}",
             "citations": [item["id"] for item in overdue_items[:3]],
         })
-    if kpis.get("open_complaints_count", 0) >= 3:
+    if complaints_count >= 1:
+        level = "warning" if complaints_count >= 3 else "info"
+        alerts.append({
+            "level": level,
+            "message": f"{complaints_count} plainte(s) ouverte(s) en attente de traitement. "
+                       f"Délai moyen de résolution à surveiller.",
+            "citations": [item["id"] for item in complaint_items[:3]],
+        })
+    if visits_24h == 0 and families_total > 0:
         alerts.append({
             "level": "warning",
-            "message": f"{kpis['open_complaints_count']} plaintes ouvertes à traiter.",
-            "citations": [item["id"] for item in complaint_items[:3]],
+            "message": f"Aucune visite enregistrée dans les dernières {window_hours}h. "
+                       f"Vérifier la disponibilité des agents et relancer la planification.",
+            "citations": [],
+        })
+    if not alerts:
+        alerts.append({
+            "level": "info",
+            "message": "Situation opérationnelle stable. Aucune alerte critique détectée.",
+            "citations": [],
         })
 
     return {
         "meta": {
             "generated_at": now_iso,
-            "window_hours": input_data.get("meta", {}).get("window_hours", 24),
+            "window_hours": window_hours,
             "lang": lang,
-            "model": "deterministic-fallback",
+            "model": "omnia-analytics-v1",
         },
         "summary": summary,
         "sections": sections,

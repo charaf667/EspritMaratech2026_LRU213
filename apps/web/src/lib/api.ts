@@ -184,14 +184,29 @@ export async function apiGetAidTypes() {
   return apiFetch<ApiAidType[]>("/api/aid-types/");
 }
 
+/** Per-key metadata not stored in backend */
+const AID_META: Record<string, { category: string; maxQty: number }> = {
+  food_parcel:      { category: "Alimentaire", maxQty: 5 },
+  medicines:        { category: "Santé",       maxQty: 3 },
+  hygiene:          { category: "Hygiène",     maxQty: 3 },
+  clothes_blankets: { category: "Vêtements",   maxQty: 5 },
+  baby:             { category: "Bébé",        maxQty: 3 },
+  school:           { category: "Éducation",   maxQty: 3 },
+  transport:        { category: "Transport",   maxQty: 2 },
+  housing:          { category: "Logement",    maxQty: 1 },
+  financial:        { category: "Financier",   maxQty: 1 },
+  specific_other:   { category: "Autre",       maxQty: 3 },
+};
+
 /** Transform API aid type → frontend AidItem type */
 export function apiAidToAidItem(a: ApiAidType): AidItem {
+  const meta = AID_META[a.key] ?? { category: "Autre", maxQty: 5 };
   return {
     id: a.key,
     label: a.label_fr,
     labelAr: a.label_ar,
-    category: "",
-    maxQty: 5,
+    category: meta.category,
+    maxQty: meta.maxQty,
   };
 }
 
@@ -301,6 +316,8 @@ interface ApiVisit {
   next_due_at: string | null;
   aids: ApiVisitAid[];
   feeling_token: string | null;
+  feeling_code: string | null;
+  omnia_ref: string | null;
   created_at: string;
 }
 
@@ -337,6 +354,8 @@ export function apiVisitToVisit(v: ApiVisit): Visit {
     notes: v.notes ?? "",
     attachments: [],
     feelingToken: v.feeling_token ?? undefined,
+    feelingCode: v.feeling_code ?? undefined,
+    omniaRef: v.omnia_ref ?? undefined,
   };
 }
 
@@ -724,7 +743,7 @@ export interface EmergencyTimelineEntry {
 
 export interface TriggerEmergencyPayload {
   client_id: string;
-  emergency_type: string;
+  type_key: string;
   summary?: string;
   details?: string;
   lat?: number | null;
@@ -770,7 +789,7 @@ export async function apiAddEmergencyNote(id: string, note: string) {
 export async function apiAssignEmergency(id: string, userId: string) {
   return apiFetch<EmergencyIncident>(`/api/v1/emergencies/${id}/assign/`, {
     method: "POST",
-    body: JSON.stringify({ user_id: userId }),
+    body: JSON.stringify({ admin_id: userId }),
   });
 }
 

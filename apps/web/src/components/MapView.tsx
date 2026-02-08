@@ -64,6 +64,9 @@ function FlyToSelected({
     const lat = Number(item.lat);
     const lng = Number(item.lng);
     if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
+    // Prevent NaN during flyTo animation when container is hidden/zero-size
+    const container = map.getContainer();
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
     try {
       map.flyTo([lat, lng], 14, { duration: 0.5 });
     } catch {

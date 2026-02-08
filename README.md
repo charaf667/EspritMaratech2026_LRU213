@@ -25,7 +25,7 @@
 17. [Testing](#testing)
 18. [LAN / Real-Device Testing](#lan--real-device-testing)
 19. [Seed Data](#seed-data)
-20. [Demo Script](#demo-script)
+20. [Demo Flow](#demo-flow)
 21. [Known Limitations & Roadmap](#known-limitations--roadmap)
 22. [Bug Fixes & Hardening (Latest)](#bug-fixes--hardening-latest)
 23. [License](#license)
@@ -91,13 +91,6 @@
 │       ├── middleware.py    # X-Internal-Token verification
 │       └── main.py
 │
-├── SOT/                     # Source of Truth docs (PRD, specs)
-├── LAN_TESTING.md           # Real-device LAN testing guide
-├── DEMO_SCRIPT.md           # 60-second jury demo script
-├── OPS_BRIEF_TEST_CHECKLIST.md  # AI Ops Brief manual test checklist (12 sections)
-├── UX_SPEC_MAP_UBER.md      # Uber/Google Maps UX optimization spec for agent /app
-├── CLAUDE_OPUS_DEBUG_PROMPT.md  # Debug prompt for mobile UX issues
-├── juryconnnexionapp.md     # LAN connection guide for jury demo
 ├── .env.example             # Environment variable template
 ├── .editorconfig
 ├── .gitignore
@@ -177,17 +170,23 @@ pip install -r requirements.txt
 pip install python-magic-bin
 
 python manage.py migrate
-python manage.py seed_aid_types       # 10 aid types (idempotent)
-python manage.py seed_demo_users      # admin + agent (idempotent)
-python manage.py seed_demo_data       # 8 families, 14 visits, 4 complaints, 7 cards, 3 notif templates
+# Option A: Full reset with realistic demo data (recommended)
+python manage.py seed_demo_reset --force
+
+# Option B: Incremental seed (idempotent)
+python manage.py seed_aid_types
+python manage.py seed_demo_users
+python manage.py seed_demo_data
+
 python manage.py runserver 0.0.0.0:8000
 ```
 
 **Demo users** (password: `dev12345`):
 | Email | Role | Notes |
 |-------|------|-------|
-| `admin@omnia.org` | admin | is_staff=True, full dashboard access |
-| `sara@omnia.org` | agent | Field agent, assigned families only |
+| `admin@omnia.org` | admin | Nadia Hadj — is_staff=True, full dashboard access |
+| `sara@omnia.org` | agent | Sara Mansouri — Field agent, assigned families |
+| `karim@omnia.org` | agent | Karim Bouzid — Second field agent |
 
 ### 3. Internal Services — FastAPI (port 8001)
 
@@ -501,7 +500,7 @@ Admin can generate an AI-powered 24-hour operational briefing:
 
 **Requirements**: Ollama running locally. See [Quick Start §3b](#3b-ollama--local-llm-optional-for-ai-ops-brief) for model installation.
 
-**Test checklist**: [`OPS_BRIEF_TEST_CHECKLIST.md`](OPS_BRIEF_TEST_CHECKLIST.md) — 12 sections covering backend, frontend, schema, grounding, i18n, accessibility, edge cases.
+**Test checklist**: 12 sections covering backend, frontend, schema, grounding, i18n, accessibility, edge cases.
 
 ---
 
@@ -676,20 +675,34 @@ Full step-by-step guide: [`LAN_TESTING.md`](LAN_TESTING.md)
 Run after `migrate` on a fresh database:
 
 ```bash
-python manage.py seed_aid_types       # 10 aid types (idempotent)
-python manage.py seed_demo_users      # 2 users (idempotent)
-python manage.py seed_demo_data       # 8 families, 14 visits, 4 complaints, 7 cards, 3 notification templates
+# Recommended: full reset with realistic Tunisian demo data
+python manage.py seed_demo_reset --force
+```
+
+This creates:
+- **3 users**: admin@omnia.org, sara@omnia.org, karim@omnia.org (password: `dev12345`)
+- **10 aid types**: Colis alimentaire (5kg), Médicaments essentiels, Kit hygiène, Kit bébé, Kit scolaire, etc.
+- **15 families**: Realistic Tunisian profiles (Tunis, Ariana, La Marsa, Manouba, Ben Arous) with vulnerability notes
+- **25 visits**: 12 varied scenarios with contextual notes and aid distributions
+- **5 complaints**: Different categories (missing_aid, delay, visit_report, data_error, other)
+- **Beneficiary cards**: QR codes for recent visits
+
+Alternative (incremental, idempotent):
+```bash
+python manage.py seed_aid_types
+python manage.py seed_demo_users
+python manage.py seed_demo_data
 ```
 
 ---
 
-## Demo Script
+## Demo Flow
 
-Full 60-second jury demo flow: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
+**Agent mobile**: login → Map/List → bottom sheet → Add Visit → Create Family
 
-**Flow:** Agent mobile (login → Map/List → bottom sheet → Add Visit → Create Family) → Admin desktop (dashboard → KPIs → Mission Planner → route compute → Duplicate Merge → compare → merge → AI Ops Brief)
+**Admin desktop**: dashboard → KPIs → Mission Planner → route compute → Duplicate Merge → compare → merge → AI Ops Brief
 
-**Key talking points:** Accessibility (6 WCAG toggles), i18n (FR/AR/TN + RTL), offline-first, real-device tested, AI-powered ops briefing
+**Key talking points**: Accessibility (6 WCAG toggles), i18n (FR/AR/TN + RTL), offline-first, real-device tested, AI-powered ops briefing
 
 ---
 
@@ -708,7 +721,7 @@ Full 60-second jury demo flow: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
 | Ollama GPU on Windows | ✅ Fixed | System now defaults to `qwen2.5:3b` (1.9 GB). Params tuned: `num_ctx=4096`, `temp=0.05`, Chat API. |
 | WebAuthn on HTTP LAN | By design | Passkeys require HTTPS or localhost. Button auto-hides on insecure context. |
 | STT on HTTP LAN | By design | `getUserMedia` requires secure context on iOS Safari. Shows i18n message. |
-| Uber-like map UX | Spec ready | `UX_SPEC_MAP_UBER.md` — dev-ready spec for map-first + bottom sheet pattern |
+| Uber-like map UX | Spec ready | Map-first + bottom sheet pattern (dev-ready spec available internally) |
 
 ---
 

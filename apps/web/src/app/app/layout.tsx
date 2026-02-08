@@ -108,6 +108,7 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
             )}
             <AccessibilityPanel />
             <LanguageSwitcher />
+            <ThemeSwitcher />
             <button
               onClick={() => router.push("/app/account")}
               aria-label={t("accountSettings")}

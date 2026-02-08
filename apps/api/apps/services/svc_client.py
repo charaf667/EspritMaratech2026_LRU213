@@ -99,9 +99,10 @@ def forward_ops_brief_generate(lang, window_hours, input_data):
         (None, error_string) on failure
     """
     url = f"{settings.SVC_BASE_URL}/v1/ops/brief/generate"
-    _ops_timeout = float(getattr(settings, "OPS_BRIEF_TIMEOUT_SECONDS", 120))
+    _ops_read_timeout = float(getattr(settings, "OPS_BRIEF_TIMEOUT_SECONDS", 120))
+    _timeout = httpx.Timeout(connect=3.0, read=_ops_read_timeout, write=10.0, pool=10.0)
     try:
-        with httpx.Client(timeout=_ops_timeout) as client:
+        with httpx.Client(timeout=_timeout) as client:
             response = client.post(
                 url,
                 headers=_get_headers(),

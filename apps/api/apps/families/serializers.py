@@ -75,6 +75,15 @@ class FamilyDetailSerializer(FamilyListSerializer):
 class FamilyCreateSerializer(serializers.ModelSerializer):
     """For creating/updating families."""
 
+    head_name = serializers.CharField(min_length=2, max_length=255)
+    household_size = serializers.IntegerField(min_value=1, max_value=50)
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=30)
+    address_text = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=500)
+    zone_label = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    lat = serializers.FloatField(min_value=-90, max_value=90)
+    lng = serializers.FloatField(min_value=-180, max_value=180)
+    vulnerability_notes = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=2000)
+
     class Meta:
         model = Family
         fields = (
@@ -94,6 +103,12 @@ class FamilyCreateSerializer(serializers.ModelSerializer):
             "accessibility_verification",
             "ocr_used",
         )
+
+    def validate_head_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Le nom du chef de famille est requis.")
+        return value
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
