@@ -131,6 +131,7 @@
   --z-dropdown: 1000;
   --z-sticky: 1100;
   --z-overlay: 1200;
+  --z-fab: 1250;
   --z-modal: 1300;
   --z-toast: 1400;
 
@@ -435,6 +436,12 @@
     border-top: 1px solid var(--border-default) !important;
     box-shadow: var(--elevation-3) !important;
   }
+  /* Inside BottomSheet: use sticky instead of fixed to stay within scroll context */
+  .a11y-one-hand [role="region"] .a11y-bottom-actions {
+    position: sticky !important;
+    left: auto !important;
+    right: auto !important;
+  }
   .a11y-one-hand .a11y-bottom-spacer {
     height: 80px;
   }
@@ -454,3 +461,17 @@
 /* Scrollbar hide utility */
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area padding for iPhone notch/home indicator */
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Bottom sheet slide-up animation */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}

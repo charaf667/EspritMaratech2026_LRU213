@@ -720,9 +720,11 @@ function StepBenefits({
               rows={2}
               className="w-full p-[var(--space-3)] rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--bg-primary)] text-[var(--text-primary)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] mb-2"
             />
-            <Button variant="critical" size="sm" disabled={!complaintText.trim()}>
-              {t("createComplaint")}
-            </Button>
+            {complaintText.trim() && (
+              <p className="text-xs text-[var(--text-tertiary)] italic">
+                {t("complaintSentWithVisit")}
+              </p>
+            )}
           </div>
         )}
       </section>

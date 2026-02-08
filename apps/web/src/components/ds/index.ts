@@ -12,6 +12,7 @@ export { default as Skeleton, CardSkeleton } from "./Skeleton";
 export { default as Modal } from "./Modal";
 export { default as Toast, type ToastVariant } from "./Toast";
 export { default as MapListLayout } from "./MapListLayout";
+export { default as BottomSheet } from "./BottomSheet";
 export { default as AccessibilityPanel } from "./AccessibilityPanel";
 export { default as TTSButton } from "./TTSButton";
 export { default as InterviewWizard } from "./InterviewWizard";

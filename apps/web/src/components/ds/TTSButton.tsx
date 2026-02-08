@@ -34,7 +34,7 @@ export default function TTSButton({ text, className }: TTSButtonProps) {
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = locale === "ar" ? "ar-SA" : "fr-FR";
+    utterance.lang = locale === "ar" ? "ar-SA" : locale === "tn" ? "ar-TN" : "fr-FR";
     utterance.rate = 0.9;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);

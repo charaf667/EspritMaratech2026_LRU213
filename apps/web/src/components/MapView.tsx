@@ -60,10 +60,32 @@ function FlyToSelected({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (item) {
+    if (item && typeof item.lat === "number" && typeof item.lng === "number" && isFinite(item.lat) && isFinite(item.lng)) {
       map.flyTo([item.lat, item.lng], 14, { duration: 0.5 });
     }
   }, [item, map]);
+  return null;
+}
+
+/**
+ * Leaflet cannot compute tile layout when its container is display:none.
+ * This component watches for resize / visibility changes and calls
+ * invalidateSize() so tiles render correctly after a mobile tab switch.
+ */
+function InvalidateSize() {
+  const map = useMap();
+  const containerRef = useRef(map.getContainer());
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    ro.observe(el);
+    // Also fire once after a short delay for the initial tab switch
+    const t = setTimeout(() => map.invalidateSize(), 150);
+    return () => { ro.disconnect(); clearTimeout(t); };
+  }, [map]);
   return null;
 }
 
@@ -246,7 +268,12 @@ function decodePolyline(encoded: string): [number, number][] {
   return points;
 }
 
-export default function MapView({ items, selectedId, onSelect, route, onClusterModeChange }: MapViewProps) {
+/** Return true when lat/lng are usable numbers (not NaN/Infinity/null/undefined). */
+const validCoords = (i: FieldItem) =>
+  typeof i.lat === "number" && typeof i.lng === "number" && isFinite(i.lat) && isFinite(i.lng) && i.lat !== 0 && i.lng !== 0;
+
+export default function MapView({ items: rawItems, selectedId, onSelect, route, onClusterModeChange }: MapViewProps) {
+  const items = useMemo(() => rawItems.filter(validCoords), [rawItems]);
   const selected = items.find((i) => i.id === selectedId);
   const useClusters = !route && items.length >= CLUSTER_THRESHOLD;
 
@@ -272,6 +299,7 @@ export default function MapView({ items, selectedId, onSelect, route, onClusterM
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <InvalidateSize />
       <FlyToSelected item={selected} />
 
       {/* Regular markers (small dataset, no route) */}

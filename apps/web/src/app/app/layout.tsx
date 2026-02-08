@@ -36,13 +36,18 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
 
   if (!isAuthenticated || !user) return null;
 
-  const tabs: Tab[] = [
-    { id: "home", label: t("tabAgentHome"), icon: <MapPin size={18} /> },
-    { id: "new-visit", label: t("tabNewVisit"), icon: <PlusCircle size={18} /> },
-    ...(hasRole("admin")
-      ? [{ id: "admin", label: t("tabAdmin"), icon: <LayoutDashboard size={18} /> }]
-      : []),
-  ];
+  // Admin on /admin gets a dedicated sidebar layout — no agent tabs
+  const isAdminView = hasRole("admin") && pathname.includes("/admin");
+
+  const tabs: Tab[] = isAdminView
+    ? []
+    : [
+        { id: "home", label: t("tabAgentHome"), icon: <MapPin size={18} /> },
+        { id: "new-visit", label: t("tabNewVisit"), icon: <PlusCircle size={18} /> },
+        ...(hasRole("admin")
+          ? [{ id: "admin", label: t("tabAdmin"), icon: <LayoutDashboard size={18} /> }]
+          : []),
+      ];
 
   const activeTab = pathname.includes("/admin")
     ? "admin"
@@ -119,8 +124,10 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <TabsNav tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
+        {/* Tabs — hidden when admin is on dedicated admin layout */}
+        {tabs.length > 0 && (
+          <TabsNav tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
+        )}
       </header>
 
       {/* Main content */}

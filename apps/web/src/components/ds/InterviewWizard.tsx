@@ -193,11 +193,13 @@ function AidsQuestion({
         const isSelected = selectedAids.has(aid.id);
         const qty = selectedAids.get(aid.id) ?? 0;
         return (
-          <button
+          <div
             key={aid.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={() => toggleAid(aid.id)}
-            className={`w-full text-start p-[var(--space-4)] rounded-[var(--radius-lg)] border-2 cursor-pointer transition-colors min-h-[var(--touch-target-comfortable)] ${
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleAid(aid.id); } }}
+            className={`w-full text-start p-[var(--space-4)] rounded-[var(--radius-lg)] border-2 cursor-pointer transition-colors min-h-[var(--touch-target-comfortable)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] ${
               isSelected
                 ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]"
                 : "border-[var(--border-subtle)] bg-[var(--surface-raised)] hover:bg-[var(--bg-secondary)]"
@@ -229,7 +231,7 @@ function AidsQuestion({
                 </button>
               </div>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

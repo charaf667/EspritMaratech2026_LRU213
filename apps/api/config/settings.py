@@ -25,6 +25,10 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+# In DEBUG mode, also allow any private-network IP so LAN testing works out-of-the-box
+if DEBUG:
+    ALLOWED_HOSTS += ["*"]
+
 # ─── Installed apps ──────────────────────────────────────────
 
 INSTALLED_APPS = [
@@ -184,10 +188,13 @@ CORS_ALLOWED_ORIGINS = [
     if o.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow any origin in dev (browser preview, LAN, etc.)
 
 # ─── CSRF ────────────────────────────────────────────────────
 
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS[:]
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += ["http://127.0.0.1:3000", "http://127.0.0.1:52030", "http://localhost:52030"]
 CSRF_COOKIE_HTTPONLY = False  # Frontend JS needs to read csrftoken cookie
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = not DEBUG
@@ -207,25 +214,33 @@ SVC_BASE_URL = "http://{}:{}".format(
 )
 SVC_INTERNAL_TOKEN = os.environ.get("SVC_INTERNAL_TOKEN", "change-me-internal-secret")
 
+# ─── AI Ops Brief ──────────────────────────────────────────
+OPS_BRIEF_ENABLED = os.environ.get("OPS_BRIEF_ENABLED", "true" if DEBUG else "false").lower() in ("true", "1")
+OPS_BRIEF_TIMEOUT_SECONDS = int(os.environ.get("OPS_BRIEF_TIMEOUT_SECONDS", "120"))
+
 # ─── WebAuthn (Passkeys) ───────────────────────────────────
 WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
 WEBAUTHN_RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "OMNIA Charity Tracking")
-WEBAUTHN_ORIGIN = os.environ.get("WEBAUTHN_ORIGIN", "http://localhost:3000")
+# Support multiple origins for LAN testing (comma-separated)
+_webauthn_origins_raw = os.environ.get("WEBAUTHN_ORIGIN", "http://localhost:3000")
+WEBAUTHN_ORIGIN = [
+    o.strip() for o in _webauthn_origins_raw.split(",") if o.strip()
+] if "," in _webauthn_origins_raw else _webauthn_origins_raw
 WEBAUTHN_CHALLENGE_TIMEOUT_MS = 300_000  # 5 minutes
 
 # ─── Rate limiting ──────────────────────────────────────────
 RATELIMIT_ENABLE = not DEBUG
 
-# ─── Email ──────────────────────────────────────────────────
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+# ─── Email (Resend) ─────────────────────────────────────────
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+# Auto-select backend: Resend if API key set, otherwise console (dev)
+_default_email_backend = (
+    "apps.notifications.backends.ResendEmailBackend"
+    if RESEND_API_KEY
+    else "django.core.mail.backends.console.EmailBackend"
 )
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in ("true", "1")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@omnia.org")
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", _default_email_backend)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "OMNIA <noreply@omnia.org>")
 
 # ─── SMS Gateway ────────────────────────────────────────────
 SMS_GATEWAY_URL = os.environ.get("SMS_GATEWAY_URL", "")

@@ -22,6 +22,8 @@ export default function PushToTalk({ onTranscript, disabled = false, className }
   const chunksRef = useRef<Blob[]>([]);
   const lastBlobRef = useRef<Blob | null>(null);
 
+  const isSecureContext = typeof window !== "undefined" && window.isSecureContext;
+
   const startRecording = useCallback(async () => {
     if (disabled || isRecording) return;
     setError(null);
@@ -35,6 +37,12 @@ export default function PushToTalk({ onTranscript, disabled = false, className }
         setTranscript(mockText);
         setIsRecording(false);
       }, 2000);
+      return;
+    }
+
+    // getUserMedia requires HTTPS (or localhost) — show clear message on HTTP LAN
+    if (!isSecureContext) {
+      setError(t("sttRequiresHttps"));
       return;
     }
 

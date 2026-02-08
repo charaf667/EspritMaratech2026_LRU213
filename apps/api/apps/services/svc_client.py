@@ -85,6 +85,43 @@ def forward_ocr_extract(image_file):
         return None, "OCR service unreachable"
 
 
+def forward_ops_brief_generate(lang, window_hours, input_data):
+    """
+    Forward an ops brief generation request to the FastAPI LLM service.
+
+    Args:
+        lang: Language code (fr, ar, tn)
+        window_hours: Time window for the brief
+        input_data: The ops_brief_input payload dict
+
+    Returns:
+        (result_dict, None) on success
+        (None, error_string) on failure
+    """
+    url = f"{settings.SVC_BASE_URL}/v1/ops/brief/generate"
+    _ops_timeout = float(getattr(settings, "OPS_BRIEF_TIMEOUT_SECONDS", 120))
+    try:
+        with httpx.Client(timeout=_ops_timeout) as client:
+            response = client.post(
+                url,
+                headers=_get_headers(),
+                json={
+                    "lang": lang,
+                    "window_hours": window_hours,
+                    "input": input_data,
+                },
+            )
+        if response.status_code == 200:
+            return response.json(), None
+        logger.error(
+            "Ops brief service returned %s: %s", response.status_code, response.text
+        )
+        return None, f"Ops brief service error (HTTP {response.status_code})"
+    except httpx.RequestError as exc:
+        logger.exception("Failed to reach ops brief service: %s", exc)
+        return None, "Ops brief service unreachable"
+
+
 def forward_route_compute(points):
     """
     Forward a route computation request to the FastAPI routing service.

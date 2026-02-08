@@ -1,7 +1,7 @@
 /**
  * API client module.
  *
- * - Base URL from NEXT_PUBLIC_API_BASE_URL
+ * - Requests go through Next.js rewrite proxy (/api/* → Django)
  * - All requests use credentials: "include" (sends session cookie)
  * - CSRF: unsafe methods read csrftoken cookie and send X-CSRFToken header
  */
@@ -13,10 +13,20 @@ import type {
 
 export const USE_API = process.env.NEXT_PUBLIC_USE_API === "true";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+/** Relative URL — requests go through Next.js rewrite proxy to Django */
+const API_BASE = "";
+/** Absolute URL for download links that bypass fetch (e.g. CSV/XLSX exports) */
+const API_DIRECT = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
+/**
+ * Module-level CSRF token cache.
+ * Stored from the JSON response of /api/auth/csrf/.
+ */
+let _csrfToken: string | null = null;
 
 /**
  * Read a cookie value by name from document.cookie.
+ * Used as a fallback when running same-origin.
  */
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -27,16 +37,22 @@ function getCookie(name: string): string | null {
 }
 
 /**
- * Fetch the CSRF token from the API and set the csrftoken cookie.
+ * Fetch the CSRF token from the API and cache it in-memory.
+ * Also sets the csrftoken cookie (used by Django for double-submit validation).
  * Call this once on app init (or before the first unsafe request).
  */
 export async function fetchCsrfToken(): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/api/auth/csrf/`, {
-    credentials: "include",
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.csrfToken ?? null;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/csrf/`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    _csrfToken = data.csrfToken ?? null;
+    return _csrfToken;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -56,7 +72,7 @@ export async function apiFetch<T = unknown>(
   // For unsafe methods, attach CSRF token from cookie
   const unsafeMethods = ["POST", "PUT", "PATCH", "DELETE"];
   if (unsafeMethods.includes(method)) {
-    const csrfToken = getCookie("csrftoken");
+    const csrfToken = _csrfToken || getCookie("csrftoken");
     if (csrfToken) {
       headers.set("X-CSRFToken", csrfToken);
     }
@@ -356,7 +372,7 @@ export async function apiDeleteAttachment(id: string) {
 }
 
 export function apiDownloadAttachmentUrl(id: string): string {
-  return `${API_BASE}/api/attachments/${id}/download/`;
+  return `${API_DIRECT}/api/attachments/${id}/download/`;
 }
 
 // ─── Feeling Portal ─────────────────────────────────────────
@@ -627,19 +643,19 @@ export async function apiAddComplaintMessage(complaintId: string, message: strin
 // ─── Exports ─────────────────────────────────────────────────
 
 export function exportFamiliesCsvUrl(): string {
-  return `${API_BASE}/api/exports/families/csv/`;
+  return `${API_DIRECT}/api/exports/families/csv/`;
 }
 
 export function exportFamiliesXlsxUrl(): string {
-  return `${API_BASE}/api/exports/families/xlsx/`;
+  return `${API_DIRECT}/api/exports/families/xlsx/`;
 }
 
 export function exportVisitsCsvUrl(): string {
-  return `${API_BASE}/api/exports/visits/csv/`;
+  return `${API_DIRECT}/api/exports/visits/csv/`;
 }
 
 export function exportVisitsXlsxUrl(): string {
-  return `${API_BASE}/api/exports/visits/xlsx/`;
+  return `${API_DIRECT}/api/exports/visits/xlsx/`;
 }
 
 // ─── Emergencies ────────────────────────────────────────────
@@ -875,5 +891,98 @@ export async function apiSubmitVisitAttestation(visitId: string, payload: Submit
   return apiFetch<VisitAttestation>(`/api/v1/visits/${visitId}/attestation/`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+// ─── Ops Brief (AI) ────────────────────────────────────────
+
+export interface OpsBriefInputItem {
+  id: string;
+  label: string;
+  priority: string;
+  target_url: string;
+  evidence: string;
+  timestamp: string;
+}
+
+export interface OpsBriefInput {
+  meta: {
+    schema_version: string;
+    generated_at: string;
+    window_hours: number;
+    lang: string;
+    data_missing: string[];
+  };
+  kpis: {
+    overdue_count: number;
+    urgent_count: number;
+    open_complaints_count: number;
+    suspected_duplicates_count: number;
+    visits_last_24h: number;
+    families_total: number;
+  };
+  top_overdue: OpsBriefInputItem[];
+  top_urgent: OpsBriefInputItem[];
+  open_complaints: OpsBriefInputItem[];
+  suspected_duplicates: OpsBriefInputItem[];
+  workload_by_agent: OpsBriefInputItem[];
+}
+
+export interface OpsBriefBullet {
+  text: string;
+  severity: "critical" | "warning" | "info";
+  citations: string[];
+}
+
+export interface OpsBriefSection {
+  title: string;
+  bullets: OpsBriefBullet[];
+}
+
+export interface OpsBriefAction {
+  title: string;
+  why: string;
+  priority: number;
+  target_url: string;
+  citations: string[];
+}
+
+export interface OpsBriefAlert {
+  level: "critical" | "warning" | "info";
+  message: string;
+  citations: string[];
+}
+
+export interface OpsBriefOutput {
+  meta: {
+    generated_at: string;
+    window_hours: number;
+    lang: string;
+    model: string;
+  };
+  summary: string;
+  sections: OpsBriefSection[];
+  actions: OpsBriefAction[];
+  alerts: OpsBriefAlert[];
+}
+
+export interface OpsBriefGenerateResponse {
+  success: boolean;
+  output: OpsBriefOutput | null;
+  fallback: boolean;
+  error: string | null;
+  timing_ms?: number;
+}
+
+export async function apiGetOpsBriefInput(windowHours = 24, lang = "fr") {
+  return apiFetch<OpsBriefInput>(
+    `/api/admin/ops-brief-input/?window=${windowHours}h&lang=${lang}`
+  );
+}
+
+export async function apiGenerateOpsBrief(windowHours = 24, lang = "fr") {
+  return apiFetch<OpsBriefGenerateResponse>("/api/admin/ops-brief-generate/", {
+    method: "POST",
+    body: JSON.stringify({ window_hours: windowHours, lang }),
   });
 }

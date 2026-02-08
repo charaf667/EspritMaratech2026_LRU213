@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpsBriefOutput",
+  "description": "AI-generated operational briefing for admin/coordinator. All citations must reference IDs from the input payload.",
+  "type": "object",
+  "required": ["meta", "summary", "sections", "actions", "alerts"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["generated_at", "window_hours", "lang", "model"],
+      "properties": {
+        "generated_at": { "type": "string", "format": "date-time" },
+        "window_hours": { "type": "integer" },
+        "lang": { "type": "string", "enum": ["fr", "ar", "tn"] },
+        "model": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-paragraph executive summary of the operational situation."
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "bullets"],
+        "properties": {
+          "title": { "type": "string" },
+          "bullets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["text", "severity", "citations"],
+              "properties": {
+                "text": { "type": "string" },
+                "severity": { "type": "string", "enum": ["critical", "warning", "info"] },
+                "citations": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "why", "priority", "target_url", "citations"],
+        "properties": {
+          "title": { "type": "string" },
+          "why": { "type": "string" },
+          "priority": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "target_url": { "type": "string" },
+          "citations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["level", "message", "citations"],
+        "properties": {
+          "level": { "type": "string", "enum": ["critical", "warning", "info"] },
+          "message": { "type": "string" },
+          "citations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

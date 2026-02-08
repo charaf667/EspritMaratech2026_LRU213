@@ -80,7 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await apiLogin(email, password);
       if (error || !data) return false;
 
-      // 3. Map to frontend User type
+      // 3. Refresh CSRF token (Django rotates it after login)
+      await fetchCsrfToken();
+
+      // 4. Map to frontend User type
       setUser(apiUserToUser(data));
       return true;
     } catch {

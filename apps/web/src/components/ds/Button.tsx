@@ -28,6 +28,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize;
   icon?: ReactNode;
   children?: ReactNode;
+  /** Keyboard shortcut hint shown on focus-visible (e.g. "Enter", "Tab", "Esc") */
+  kbdHint?: string;
 }
 
 export default function Button({
@@ -37,6 +39,7 @@ export default function Button({
   children,
   className,
   disabled,
+  kbdHint,
   ...props
 }: ButtonProps) {
   return (
@@ -44,6 +47,7 @@ export default function Button({
       className={cn(
         "inline-flex items-center justify-center font-medium rounded-[var(--radius-md)] cursor-pointer transition-colors duration-[var(--transition-fast)] disabled:cursor-not-allowed disabled:opacity-60",
         "min-w-[var(--touch-target-min)]",
+        kbdHint && "relative group",
         variantStyles[variant],
         sizeStyles[size],
         className
@@ -53,6 +57,11 @@ export default function Button({
     >
       {icon && <span className="shrink-0">{icon}</span>}
       {children}
+      {kbdHint && (
+        <kbd className="kbd-hint hidden group-focus-visible:inline-block absolute -bottom-1 right-0 translate-y-full px-1.5 py-0.5 text-[10px] font-mono leading-none rounded bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)] shadow-sm pointer-events-none z-10">
+          {kbdHint}
+        </kbd>
+      )}
     </button>
   );
 }

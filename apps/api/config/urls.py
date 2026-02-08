@@ -17,6 +17,7 @@ _v1_domain = [
     path("", include("apps.dashboard.urls")),
     path("", include("apps.emergencies.urls")),
     path("", include("apps.attestations.urls")),
+    path("", include("apps.ops_brief.urls")),
     path("stt/", include("apps.stt.urls")),
 ]
 

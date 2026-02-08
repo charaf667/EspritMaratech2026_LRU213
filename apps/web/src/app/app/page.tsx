@@ -5,14 +5,20 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_FAMILIES, MOCK_VISITS, MOCK_AIDS, type Family, type Priority } from "@/lib/mock-data";
-import { USE_API, apiGetFamilies, apiFamilyToFamily, apiGetVisits, apiVisitAidLabels } from "@/lib/api";
+import {
+  USE_API, apiGetFamilies, apiFamilyToFamily, apiGetVisits, apiVisitAidLabels,
+  apiCreateFamily, type CreateFamilyPayload,
+} from "@/lib/api";
 import { useOffline } from "@/lib/offline-context";
 import { getCachedFamilies, getCachedVisits, cacheVisits, type OutboxEntry } from "@/lib/offline-db";
-import { MapListLayout, Input, Chip, Badge, EmptyState, Button, EmergencyFAB, EmergencyTriggerSheet, EmergencyJournal, type BadgeVariant } from "@/components/ds";
+import { MapListLayout, Input, Chip, Badge, EmptyState, Button, Modal, EmergencyFAB, EmergencyTriggerSheet, EmergencyJournal, type BadgeVariant } from "@/components/ds";
 import { CardSkeleton } from "@/components/ds/Skeleton";
 import MapViewDynamic from "@/components/MapViewDynamic";
 import RoutePlanner from "@/components/ds/RoutePlanner";
-import { Search, ChevronRight, Users, Calendar, PlusCircle, WifiOff, Route } from "lucide-react";
+import {
+  Search, ChevronRight, Users, Calendar, PlusCircle, WifiOff, Route,
+  Phone, Navigation2, Edit3, X, UserPlus, MapPin, Loader2, Check,
+} from "lucide-react";
 
 const PRIORITY_ORDER: Record<Priority, number> = { overdue: 0, urgent: 1, normal: 2 };
 const PRIORITY_BADGE: Record<Priority, BadgeVariant> = { overdue: "critical", urgent: "warning", normal: "neutral" };
@@ -36,6 +42,7 @@ export default function AgentHomePage() {
   const [isClustered, setIsClustered] = useState(false);
   const [emergencySheetOpen, setEmergencySheetOpen] = useState(false);
   const [emergencyJournalOpen, setEmergencyJournalOpen] = useState(false);
+  const [showCreateFamily, setShowCreateFamily] = useState(false);
 
   // Fetch families
   useEffect(() => {
@@ -126,7 +133,7 @@ export default function AgentHomePage() {
   };
 
   const listPanel = (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col sm:h-full sm:overflow-hidden">
       {/* Offline banner */}
       {!isOnline && (
         <div role="status" aria-live="polite" className="flex items-center gap-2 px-[var(--space-3)] py-[var(--space-2)] bg-[var(--warning)] text-[var(--on-warning)] text-sm">
@@ -179,7 +186,7 @@ export default function AgentHomePage() {
           }
         />
       ) : (
-        <ul role="list" aria-label={t("list")} className="flex-1 overflow-y-auto">
+        <ul role="list" aria-label={t("list")} className="flex-1 sm:overflow-y-auto">
           {filteredFamilies.map((family) => (
             <li key={family.id}>
               <button
@@ -200,7 +207,7 @@ export default function AgentHomePage() {
                     {t(family.priority)}
                   </Badge>
                 </div>
-                <p className="a11y-tertiary text-xs text-[var(--text-tertiary)] mb-1">ID: {family.id.substring(0, 8)}</p>
+                <p className="a11y-tertiary text-xs text-[var(--text-tertiary)] mb-1">ID: {(family.id ?? "").substring(0, 8)}</p>
                 <p className="a11y-secondary text-sm text-[var(--text-secondary)]">{family.address}</p>
                 <p className="a11y-tertiary text-sm text-[var(--text-secondary)]">{family.phone}</p>
                 <div className="a11y-secondary flex items-center justify-between mt-2 text-xs text-[var(--text-tertiary)]">
@@ -223,15 +230,15 @@ export default function AgentHomePage() {
         <Button
           variant="secondary"
           size="md"
-          icon={<Route size={20} />}
-          onClick={() => setShowRoutePlanner(true)}
+          icon={<UserPlus size={18} />}
+          onClick={() => setShowCreateFamily(true)}
         >
-          {t("planRoute")}
+          {t("addFamily")}
         </Button>
         <Button
           variant="primary"
           size="md"
-          icon={<PlusCircle size={20} />}
+          icon={<PlusCircle size={18} />}
           className="flex-1"
           onClick={() => router.push("/app/new-visit")}
         >
@@ -301,9 +308,139 @@ export default function AgentHomePage() {
         open={emergencyJournalOpen}
         onClose={() => setEmergencyJournalOpen(false)}
       />
+
+      {/* Create Family Modal */}
+      <CreateFamilyModal
+        open={showCreateFamily}
+        onClose={() => setShowCreateFamily(false)}
+        onCreated={(f) => {
+          setFamilies((prev) => [f, ...prev]);
+          setShowCreateFamily(false);
+        }}
+      />
     </>
   );
 }
+
+// ─── Create Family Modal ───────────────────────────────────
+
+function CreateFamilyModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (family: Family) => void;
+}) {
+  const { t } = useI18n();
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [headName, setHeadName] = useState("");
+  const [householdSize, setHouseholdSize] = useState("1");
+  const [formPhone, setFormPhone] = useState("");
+  const [formAddress, setFormAddress] = useState("");
+  const [formZone, setFormZone] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+
+  const resetForm = () => {
+    setHeadName(""); setHouseholdSize("1"); setFormPhone(""); setFormAddress("");
+    setFormZone(""); setLat(""); setLng(""); setFormError("");
+  };
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setLat(pos.coords.latitude.toFixed(6)); setLng(pos.coords.longitude.toFixed(6)); },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const handleCreate = async () => {
+    if (!headName.trim()) return;
+    setCreating(true);
+    setFormError("");
+
+    const payload: CreateFamilyPayload = {
+      head_name: headName.trim(),
+      household_size: Math.max(1, parseInt(householdSize) || 1),
+      phone: formPhone.trim() || undefined,
+      address_text: formAddress.trim() || undefined,
+      zone_label: formZone.trim() || undefined,
+      lat: parseFloat(lat) || 36.8,
+      lng: parseFloat(lng) || 10.18,
+    };
+
+    if (USE_API) {
+      const { data, error } = await apiCreateFamily(payload);
+      if (data) {
+        onCreated(apiFamilyToFamily(data));
+        resetForm();
+      } else {
+        setFormError(t("familyCreateError"));
+      }
+    } else {
+      const mockFamily: Family = {
+        id: `FAM-${Date.now()}`,
+        name: payload.head_name,
+        address: payload.address_text ?? "",
+        phone: payload.phone ?? "",
+        priority: "normal",
+        lat: payload.lat,
+        lng: payload.lng,
+        membersCount: payload.household_size,
+        lastVisit: "",
+        zone: payload.zone_label ?? "",
+      };
+      onCreated(mockFamily);
+      resetForm();
+    }
+    setCreating(false);
+  };
+
+  return (
+    <Modal open={open} onClose={() => { onClose(); resetForm(); }} title={t("addFamily")}>
+      <div className="space-y-[var(--space-3)]">
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t("headName")} *</label>
+          <Input value={headName} onChange={(e) => setHeadName(e.target.value)} placeholder={t("headName")} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t("householdSize")}</label>
+          <Input type="number" value={householdSize} onChange={(e) => setHouseholdSize(e.target.value)} min="1" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t("phone")}</label>
+          <Input value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder={t("phone")} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t("addressText")}</label>
+          <Input value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder={t("addressText")} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t("zoneLabel")}</label>
+          <Input value={formZone} onChange={(e) => setFormZone(e.target.value)} placeholder={t("zoneLabel")} />
+        </div>
+        <Button variant="secondary" size="sm" icon={<MapPin size={16} />} onClick={handleGeolocate} className="w-full">
+          {t("useMyLocation")}
+        </Button>
+        {formError && <p className="text-sm text-[var(--critical)]">{formError}</p>}
+        <Button
+          variant="primary" size="md" className="w-full"
+          disabled={!headName.trim() || creating}
+          icon={creating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+          onClick={handleCreate}
+        >
+          {creating ? t("loading") : t("createFamily")}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Family Bottom Sheet ───────────────────────────────────
 
 function FamilyDetail({
   family,
@@ -368,89 +505,127 @@ function FamilyDetail({
     });
   }, [family.id, isOnline]);
 
+  const handleCall = () => {
+    if (family.phone) window.open(`tel:${family.phone}`, "_self");
+  };
+
+  const handleNavigate = () => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${family.lat},${family.lng}`, "_blank");
+  };
+
   return (
-    <div className="fixed inset-0 z-[var(--z-overlay)] flex justify-end sm:items-stretch">
+    <div className="fixed inset-0 z-[var(--z-overlay)] flex sm:justify-end">
+      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-md bg-[var(--surface-raised)] shadow-[var(--elevation-5)] flex flex-col overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-[var(--surface-raised)] border-b border-[var(--border-default)] p-[var(--space-4)] flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-            {t("family")} {family.name}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label={t("close")}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] cursor-pointer min-w-[var(--touch-target-min)] min-h-[var(--touch-target-min)]"
-          >
-            ✕
-          </button>
+
+      {/* Bottom sheet (mobile) / Side panel (desktop) */}
+      <div
+        role="dialog"
+        aria-label={`${t("family")} ${family.name}`}
+        className="relative w-full sm:max-w-md bg-[var(--surface-raised)] shadow-[var(--elevation-5)] flex flex-col overflow-y-auto
+          mt-auto sm:mt-0 max-h-[85vh] sm:max-h-full rounded-t-2xl sm:rounded-none
+          animate-slide-up sm:animate-none"
+      >
+        {/* Drag handle (mobile) */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-[var(--border-default)]" />
         </div>
 
-        {/* Body */}
-        <div className="p-[var(--space-4)] space-y-[var(--space-4)] flex-1">
-          <Badge variant={PRIORITY_BADGE[family.priority]}>{t(family.priority)}</Badge>
-
-          <dl className="grid grid-cols-2 gap-y-[var(--space-3)] gap-x-[var(--space-4)] text-sm">
-            <dt className="text-[var(--text-tertiary)]">{t("familyId")}</dt>
-            <dd className="text-[var(--text-primary)] font-medium">{family.id.substring(0, 8)}</dd>
-
-            <dt className="text-[var(--text-tertiary)]">{t("address")}</dt>
-            <dd className="text-[var(--text-primary)]">{family.address}</dd>
-
-            <dt className="text-[var(--text-tertiary)]">{t("phone")}</dt>
-            <dd className="text-[var(--text-primary)]">{family.phone}</dd>
-
-            <dt className="text-[var(--text-tertiary)]">{t("members")}</dt>
-            <dd className="text-[var(--text-primary)]">{family.membersCount}</dd>
-
-            <dt className="text-[var(--text-tertiary)]">{t("lastVisit")}</dt>
-            <dd className="text-[var(--text-primary)]">{family.lastVisit}</dd>
-
-            <dt className="text-[var(--text-tertiary)]">{t("zone")}</dt>
-            <dd className="text-[var(--text-primary)]">{family.zone}</dd>
-          </dl>
-
-          {/* Visit history */}
+        {/* Header */}
+        <div className="px-[var(--space-4)] py-[var(--space-3)] flex items-center justify-between">
           <div>
-            <h3 className="text-base font-medium text-[var(--text-primary)] mb-[var(--space-3)]">
-              {t("visitHistory")}
-            </h3>
-            {visits.length === 0 ? (
-              <p className="text-sm text-[var(--text-tertiary)]">{t("noVisits")}</p>
-            ) : (
-              <div className="space-y-2">
-                {visits.map((v) => (
-                  <div
-                    key={v.id}
-                    className="p-[var(--space-3)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
-                  >
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{v.date}</span>
-                      <span className="text-[var(--text-tertiary)]">{v.status}</span>
-                    </div>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      {v.aidsLabels.join(", ")}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+              {family.name}
+            </h2>
+            <p className="text-xs text-[var(--text-tertiary)]">{family.address}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={PRIORITY_BADGE[family.priority]}>{t(family.priority)}</Badge>
+            <button
+              onClick={onClose}
+              aria-label={t("close")}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] cursor-pointer min-w-[var(--touch-target-min)] min-h-[var(--touch-target-min)]"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
 
-        {/* Footer CTA */}
-        <div className="sticky bottom-0 p-[var(--space-4)] border-t border-[var(--border-default)] bg-[var(--surface-raised)]">
-          <Button
-            variant="primary"
-            size="md"
-            icon={<PlusCircle size={20} />}
-            className="w-full"
-            onClick={onNewVisit}
+        {/* Quick Actions Row */}
+        <div className="px-[var(--space-4)] pb-[var(--space-3)] flex gap-2">
+          <button
+            type="button"
+            onClick={handleCall}
+            disabled={!family.phone}
+            className="flex-1 flex flex-col items-center gap-1 py-[var(--space-3)] rounded-[var(--radius-lg)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-40 cursor-pointer transition-colors min-h-[var(--touch-target-min)]"
           >
-            {t("newVisit")}
-          </Button>
+            <Phone size={20} className="text-[var(--success)]" />
+            <span className="text-xs font-medium text-[var(--text-primary)]">{t("call")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleNavigate}
+            className="flex-1 flex flex-col items-center gap-1 py-[var(--space-3)] rounded-[var(--radius-lg)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors min-h-[var(--touch-target-min)]"
+          >
+            <Navigation2 size={20} className="text-[var(--primary)]" />
+            <span className="text-xs font-medium text-[var(--text-primary)]">{t("navigate")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onNewVisit}
+            className="flex-1 flex flex-col items-center gap-1 py-[var(--space-3)] rounded-[var(--radius-lg)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--primary)_15%,transparent)] cursor-pointer transition-colors min-h-[var(--touch-target-min)]"
+          >
+            <PlusCircle size={20} className="text-[var(--primary)]" />
+            <span className="text-xs font-medium text-[var(--primary)]">{t("addVisit")}</span>
+          </button>
+        </div>
+
+        {/* Info Grid */}
+        <div className="px-[var(--space-4)] pb-[var(--space-3)]">
+          <div className="grid grid-cols-3 gap-[var(--space-3)] text-center">
+            <div className="p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--bg-secondary)]">
+              <p className="text-lg font-bold text-[var(--text-primary)]">{family.membersCount}</p>
+              <p className="text-xs text-[var(--text-tertiary)]">{t("members")}</p>
+            </div>
+            <div className="p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--bg-secondary)]">
+              <p className="text-sm font-medium text-[var(--text-primary)]">{family.lastVisit || "—"}</p>
+              <p className="text-xs text-[var(--text-tertiary)]">{t("lastVisit")}</p>
+            </div>
+            <div className="p-[var(--space-2)] rounded-[var(--radius-md)] bg-[var(--bg-secondary)]">
+              <p className="text-sm font-medium text-[var(--text-primary)]">{family.zone || "—"}</p>
+              <p className="text-xs text-[var(--text-tertiary)]">{t("zone")}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Visit history */}
+        <div className="px-[var(--space-4)] pb-[var(--space-4)] flex-1">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-[var(--space-2)]">
+            {t("visitHistory")}
+          </h3>
+          {visits.length === 0 ? (
+            <p className="text-sm text-[var(--text-tertiary)]">{t("noVisits")}</p>
+          ) : (
+            <div className="space-y-2">
+              {visits.map((v) => (
+                <div
+                  key={v.id}
+                  className="p-[var(--space-3)] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
+                >
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{v.date}</span>
+                    <span className="text-[var(--text-tertiary)]">{v.status}</span>
+                  </div>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    {v.aidsLabels.join(", ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
     </div>
   );
 }

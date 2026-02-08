@@ -9,11 +9,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-# Load .env from repo root
+# Load local .env first (service-specific: OLLAMA_MODEL, etc.)
+_local_env = Path(__file__).resolve().parent / ".env"
+load_dotenv(_local_env)
+# Then load root .env (shared settings)
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(_env_path)
 
-from routers import health, ocr, routing, stt  # noqa: E402
+from routers import health, ocr, ops_brief, routing, stt  # noqa: E402
 from middleware import verify_internal_token  # noqa: E402
 
 app = FastAPI(
@@ -29,6 +32,7 @@ app.include_router(health.router)
 app.include_router(stt.router, prefix="/stt", tags=["STT"])
 app.include_router(routing.router, prefix="/routing", tags=["Routing"])
 app.include_router(ocr.router, prefix="/ocr", tags=["OCR"])
+app.include_router(ops_brief.router, prefix="/v1/ops", tags=["OpsBrief"])
 
 
 @app.on_event("startup")
@@ -36,5 +40,5 @@ async def _preload_models():
     """Preload Whisper model at startup so the first STT request is fast."""
     try:
         stt._get_model()
-    except Exception:
-        pass  # Model download may fail offline; will retry on first request
+    except BaseException:
+        pass  # Model download may fail offline/SSL; will retry on first request

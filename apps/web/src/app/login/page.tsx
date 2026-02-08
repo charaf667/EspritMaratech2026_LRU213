@@ -25,10 +25,13 @@ export default function LoginPage() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [webauthnSupported, setWebauthnSupported] = useState(false);
 
-  // Detect WebAuthn support
+  // Detect WebAuthn support — requires secure context (HTTPS or localhost)
   useEffect(() => {
-    setWebauthnSupported(
+    const isSecure =
       typeof window !== "undefined" &&
+      (window.isSecureContext || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    setWebauthnSupported(
+      isSecure &&
       !!window.PublicKeyCredential &&
       typeof window.PublicKeyCredential === "function"
     );
