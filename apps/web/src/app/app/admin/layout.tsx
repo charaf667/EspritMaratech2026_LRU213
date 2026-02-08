@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useI18n } from "@/i18n";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -38,8 +38,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { id: "ops-brief", label: t("sidebarOpsBrief"), icon: <Brain size={20} /> },
   ];
 
-  // Derive active section from URL search param or default to dashboard
-  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  // Derive active section from URL search param (reactive via Next.js hook)
+  const searchParams = useSearchParams();
   const activeSection = searchParams.get("section") || "dashboard";
 
   const handleNav = (id: string) => {

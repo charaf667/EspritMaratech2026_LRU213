@@ -7,7 +7,8 @@ from rest_framework.response import Response
 
 from config.throttles import LoginRateThrottle
 
-from .serializers import LoginSerializer, UserSerializer
+from .models import User
+from .serializers import CreateUserSerializer, LoginSerializer, UpdateUserSerializer, UserSerializer
 
 
 @api_view(["GET"])
@@ -61,19 +62,64 @@ def me_view(request):
     return Response(UserSerializer(request.user).data)
 
 
-@api_view(["GET"])
+def _require_admin(request):
+    if request.user.role != "admin":
+        return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+    return None
+
+
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def users_list_view(request):
-    """List all users. Admin only."""
-    from apps.common.permissions import IsAdmin
+    """GET: list all users. POST: create a new user. Admin only."""
+    denied = _require_admin(request)
+    if denied:
+        return denied
 
-    if request.user.role != "admin":
-        return Response(
-            {"detail": "Admin access required."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+    if request.method == "GET":
+        users = User.objects.all().order_by("first_name", "last_name")
+        return Response(UserSerializer(users, many=True).data)
 
-    from .models import User
+    # POST — create user
+    serializer = CreateUserSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    d = serializer.validated_data
+    user = User.objects.create_user(
+        email=d["email"],
+        password=d["password"],
+        first_name=d["first_name"],
+        last_name=d["last_name"],
+        role=d["role"],
+    )
+    return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
-    users = User.objects.all().order_by("first_name", "last_name")
-    return Response(UserSerializer(users, many=True).data)
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def user_detail_view(request, user_id):
+    """GET/PATCH/DELETE a single user. Admin only."""
+    denied = _require_admin(request)
+    if denied:
+        return denied
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        return Response(UserSerializer(user).data)
+
+    if request.method == "DELETE":
+        if user.id == request.user.id:
+            return Response({"detail": "Vous ne pouvez pas supprimer votre propre compte."}, status=status.HTTP_400_BAD_REQUEST)
+        user.delete()
+        return Response({"detail": "User deleted."}, status=status.HTTP_200_OK)
+
+    # PATCH — update user
+    serializer = UpdateUserSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    for attr, value in serializer.validated_data.items():
+        setattr(user, attr, value)
+    user.save(update_fields=list(serializer.validated_data.keys()))
+    return Response(UserSerializer(user).data)

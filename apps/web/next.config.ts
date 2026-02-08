@@ -7,12 +7,14 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        // :path* strips trailing slash, so we add it back for Django
         source: "/api/:path*",
-        destination: `${API_URL}/api/:path*`,
+        destination: `${API_URL}/api/:path*/`,
       },
     ];
   },
-  allowedDevOrigins: ["127.0.0.1"],
+  skipTrailingSlashRedirect: true,
+  allowedDevOrigins: ["127.0.0.1", "192.168.137.149"],
 };
 
 // Only wrap with Sentry if DSN is provided

@@ -15,10 +15,12 @@ import {
   apiDashboardToCriticalQueue, apiDashboardToDataQuality, apiDashboardToWorkload,
   apiDashboardToSLA,
   apiGetFamilies, apiFamilyToFamily, apiGetFamily, apiGetComplaints, apiComplaintToComplaint,
-  apiGetUsers, apiUserToUser, apiAssignFamily, apiMergeFamily, apiComputeRoute,
+  apiGetUsers, apiUserToUser, apiCreateUser, apiUpdateUser, apiDeleteUser,
+  apiAssignFamily, apiMergeFamily, apiComputeRoute,
   apiUpdateComplaintStatus, apiAssignComplaint, apiAddComplaintMessage,
   exportFamiliesCsvUrl, exportFamiliesXlsxUrl, exportVisitsCsvUrl, exportVisitsXlsxUrl,
   apiGenerateOpsBrief,
+  type CreateUserPayload,
   type OpsBriefOutput, type OpsBriefSection, type OpsBriefAction, type OpsBriefAlert, type OpsBriefGenerateResponse,
 } from "@/lib/api";
 import type { TranslationKey } from "@/i18n";
@@ -29,7 +31,7 @@ import {
   Users, BarChart3, ShieldAlert, Database, ChevronRight, Search,
   UserPlus, Eye, Send, MessageSquare, Download, Activity,
   Route, MapPin, Ruler, Copy, CheckCircle2, GitMerge, Loader2, X, Brain, RefreshCw,
-  ExternalLink, Info, AlertCircle, Zap,
+  ExternalLink, Info, AlertCircle, Zap, Trash2, Edit3, Save,
 } from "lucide-react";
 
 const PRIORITY_BADGE: Record<Priority, BadgeVariant> = {
@@ -792,46 +794,232 @@ function ComplaintDetailModal({
 // ─── Users Admin View ───────────────────────────────────────
 
 function UsersView({ t }: { t: (key: TranslationKey) => string }) {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>(USE_API ? [] : MOCK_USERS);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<string>("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Add form state
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newRole, setNewRole] = useState<"agent" | "admin">("agent");
+
+  const loadUsers = () => {
     if (!USE_API) return;
     apiGetUsers().then(({ data }) => {
       if (data) setUsers(data.map(apiUserToUser));
     });
-  }, []);
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const handleCreate = async () => {
+    if (!newEmail || !newPassword || !newFirstName || !newLastName) {
+      setError("Tous les champs sont obligatoires.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { data, error: err } = await apiCreateUser({
+      email: newEmail, password: newPassword,
+      first_name: newFirstName, last_name: newLastName, role: newRole,
+    });
+    setSaving(false);
+    if (err) { setError(err); return; }
+    setShowAdd(false);
+    setNewEmail(""); setNewPassword(""); setNewFirstName(""); setNewLastName(""); setNewRole("agent");
+    loadUsers();
+  };
+
+  const handleUpdateRole = async (userId: string) => {
+    setSaving(true);
+    await apiUpdateUser(userId, { role: editRole });
+    setSaving(false);
+    setEditingId(null);
+    loadUsers();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setSaving(true);
+    const { error: err } = await apiDeleteUser(deleteId);
+    setSaving(false);
+    if (err) { setError(err); setDeleteId(null); return; }
+    setDeleteId(null);
+    loadUsers();
+  };
+
+  const userToDelete = users.find((u) => u.id === deleteId);
 
   return (
     <div className="space-y-6" role="region" aria-label={t("sidebarUsers")}>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t("sidebarUsers")}</h1>
-        <Button variant="primary" size="sm" icon={<UserPlus size={16} />} disabled title="V2 — Création utilisateur via Django admin">
+        <Button variant="primary" size="sm" icon={<UserPlus size={16} />} onClick={() => { setShowAdd(true); setError(null); }}>
           {t("addUser")}
         </Button>
       </div>
+
+      {error && !showAdd && !deleteId && (
+        <div className="p-3 rounded-[var(--radius-md)] bg-[var(--critical-light)] text-[var(--critical)] text-sm">{error}</div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {users.map((user) => (
-          <Card key={user.id}>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-[var(--primary)] flex items-center justify-center text-[var(--on-primary)] font-semibold text-sm shrink-0">
-                {user.firstName[0]}{user.lastName[0]}
+        {users.map((user) => {
+          const isEditing = editingId === user.id;
+          const isSelf = user.id === currentUser?.id;
+          return (
+            <Card key={user.id}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-[var(--primary)] flex items-center justify-center text-[var(--on-primary)] font-semibold text-sm shrink-0">
+                  {user.firstName?.[0] ?? ""}{user.lastName?.[0] ?? ""}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-[var(--text-primary)] truncate">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs text-[var(--text-tertiary)] truncate">{user.email}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={editRole}
+                        onChange={(e) => setEditRole(e.target.value)}
+                        className="text-xs border border-[var(--border-default)] rounded-[var(--radius-sm)] px-1.5 py-1 bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                      >
+                        <option value="agent">Agent</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      <button onClick={() => handleUpdateRole(user.id)} disabled={saving} className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--success)] cursor-pointer" title="Sauvegarder">
+                        <Save size={14} />
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] cursor-pointer" title="Annuler">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <Badge variant={user.role === "admin" ? "info" : "neutral"}>
+                      {user.role === "admin" ? t("admin") : t("agent")}
+                    </Badge>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setEditingId(user.id); setEditRole(user.role); }}
+                      className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--primary)] cursor-pointer transition-colors"
+                      title="Modifier le rôle"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    {!isSelf && (
+                      <button
+                        onClick={() => { setDeleteId(user.id); setError(null); }}
+                        className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--critical)] cursor-pointer transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-[var(--text-primary)] truncate">
-                  {user.firstName} {user.lastName}
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)] truncate">{user.email}</p>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* ── Add User Modal ── */}
+      {showAdd && (
+        <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Nouvel utilisateur">
+          <div className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-[var(--radius-md)] bg-[var(--critical-light)] text-[var(--critical)] text-sm">{error}</div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Prénom</label>
+                <input
+                  value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-[var(--radius-md)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)]"
+                  placeholder="Sara"
+                />
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <Badge variant={user.role === "admin" ? "info" : "neutral"}>
-                  {user.role === "admin" ? t("admin") : t("agent")}
-                </Badge>
-                {user.zone && <span className="text-xs text-[var(--text-tertiary)]">{user.zone}</span>}
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Nom</label>
+                <input
+                  value={newLastName} onChange={(e) => setNewLastName(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-[var(--radius-md)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)]"
+                  placeholder="Mansouri"
+                />
               </div>
             </div>
-          </Card>
-        ))}
-      </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Email</label>
+              <input
+                type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-[var(--radius-md)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)]"
+                placeholder="sara@omnia.org"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Mot de passe</label>
+              <input
+                type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-[var(--radius-md)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)]"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Rôle</label>
+              <select
+                value={newRole} onChange={(e) => setNewRole(e.target.value as "agent" | "admin")}
+                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-[var(--radius-md)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)]"
+              >
+                <option value="agent">Agent</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowAdd(false)}>Annuler</Button>
+              <Button variant="primary" size="sm" icon={saving ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} onClick={handleCreate} disabled={saving}>
+                {saving ? "Création..." : "Créer"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteId && userToDelete && (
+        <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Confirmer la suppression">
+          <div className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-[var(--radius-md)] bg-[var(--critical-light)] text-[var(--critical)] text-sm">{error}</div>
+            )}
+            <p className="text-sm text-[var(--text-secondary)]">
+              Voulez-vous vraiment supprimer <strong>{userToDelete.firstName} {userToDelete.lastName}</strong> ({userToDelete.email}) ?
+              Cette action est irréversible.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setDeleteId(null)}>Annuler</Button>
+              <Button
+                variant="primary" size="sm"
+                icon={saving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                onClick={handleDelete} disabled={saving}
+                className="!bg-[var(--critical)] hover:!bg-[color-mix(in_srgb,var(--critical)_85%,black)]"
+              >
+                {saving ? "Suppression..." : "Supprimer"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1228,7 +1416,7 @@ function DuplicateMergeView({ t }: { t: (key: TranslationKey) => string }) {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-[var(--warning)]">{Math.round(pair.similarity * 100)}%</p>
+                      <p className="text-lg font-bold text-[var(--warning)]">{pair.similarity > 1 ? Math.round(pair.similarity) : Math.round(pair.similarity * 100)}%</p>
                       <p className="text-xs text-[var(--text-tertiary)]">{t("similarity")}</p>
                     </div>
                     <Button variant="secondary" size="sm" icon={<Eye size={16} />} onClick={() => handleCompare(realIdx)}>

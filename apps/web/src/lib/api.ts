@@ -607,6 +607,34 @@ export async function apiGetUsers() {
   return apiFetch<UserInfo[]>("/api/auth/users/");
 }
 
+export interface CreateUserPayload {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: "agent" | "admin";
+}
+
+export async function apiCreateUser(payload: CreateUserPayload) {
+  return apiFetch<UserInfo>("/api/auth/users/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateUser(userId: string, payload: Partial<{ first_name: string; last_name: string; role: string; is_active: boolean }>) {
+  return apiFetch<UserInfo>(`/api/auth/users/${userId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteUser(userId: string) {
+  return apiFetch<{ detail: string }>(`/api/auth/users/${userId}/`, {
+    method: "DELETE",
+  });
+}
+
 // ─── Complaints Management ──────────────────────────────────
 
 export async function apiUpdateComplaintStatus(

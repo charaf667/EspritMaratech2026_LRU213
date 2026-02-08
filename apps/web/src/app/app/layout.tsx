@@ -8,6 +8,7 @@ import { OfflineProvider, useOffline } from "@/lib/offline-context";
 import { TabsNav, type Tab } from "@/components/ds";
 import AccessibilityPanel from "@/components/ds/AccessibilityPanel";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { MapPin, PlusCircle, LayoutDashboard, LogOut, WifiOff, UserCircle } from "lucide-react";
 import type { ReactNode } from "react";
 

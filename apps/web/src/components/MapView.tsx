@@ -60,8 +60,14 @@ function FlyToSelected({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (item && typeof item.lat === "number" && typeof item.lng === "number" && isFinite(item.lat) && isFinite(item.lng)) {
-      map.flyTo([item.lat, item.lng], 14, { duration: 0.5 });
+    if (!item) return;
+    const lat = Number(item.lat);
+    const lng = Number(item.lng);
+    if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return;
+    try {
+      map.flyTo([lat, lng], 14, { duration: 0.5 });
+    } catch {
+      // Leaflet LatLng validation can throw on edge-case values
     }
   }, [item, map]);
   return null;
@@ -78,12 +84,16 @@ function InvalidateSize() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      map.invalidateSize();
-    });
+    const safeInvalidate = () => {
+      // Only invalidate when container has real dimensions — avoids Leaflet NaN from unproject()
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        map.invalidateSize();
+      }
+    };
+    const ro = new ResizeObserver(safeInvalidate);
     ro.observe(el);
     // Also fire once after a short delay for the initial tab switch
-    const t = setTimeout(() => map.invalidateSize(), 150);
+    const t = setTimeout(safeInvalidate, 150);
     return () => { ro.disconnect(); clearTimeout(t); };
   }, [map]);
   return null;
@@ -268,9 +278,12 @@ function decodePolyline(encoded: string): [number, number][] {
   return points;
 }
 
-/** Return true when lat/lng are usable numbers (not NaN/Infinity/null/undefined). */
-const validCoords = (i: FieldItem) =>
-  typeof i.lat === "number" && typeof i.lng === "number" && isFinite(i.lat) && isFinite(i.lng) && i.lat !== 0 && i.lng !== 0;
+/** Return true when lat/lng are usable numbers (not NaN/Infinity/null/undefined/0). */
+const validCoords = (i: FieldItem) => {
+  const lat = Number(i.lat);
+  const lng = Number(i.lng);
+  return isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0;
+};
 
 export default function MapView({ items: rawItems, selectedId, onSelect, route, onClusterModeChange }: MapViewProps) {
   const items = useMemo(() => rawItems.filter(validCoords), [rawItems]);
